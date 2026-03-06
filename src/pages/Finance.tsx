@@ -1,23 +1,35 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
-
-const MOCK_MOVEMENTS = [
-    { id: 1, fecha: '2026-03-05 14:30', tipo: 'INGRESO', concepto: 'Venta Ticket #0045', monto: 12500, metodo: 'Efectivo' },
-    { id: 2, fecha: '2026-03-05 15:15', tipo: 'EGRESO', concepto: 'Pago a Proveedor (DogChow)', monto: 85000, metodo: 'Transferencia' },
-    { id: 3, fecha: '2026-03-05 16:00', tipo: 'INGRESO', concepto: 'Venta Ticket #0046', monto: 3500, metodo: 'Tarjeta Débito' },
-    { id: 4, fecha: '2026-03-05 16:45', tipo: 'EGRESO', concepto: 'Gastos de limpieza', monto: 1200, metodo: 'Efectivo' },
-];
+import { ipc } from '../utils/ipc';
 
 export default function Finance() {
+    const [movements, setMovements] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('TODOS');
 
-    const filteredMovements = MOCK_MOVEMENTS.filter(m => filter === 'TODOS' || m.tipo === filter);
+    useEffect(() => {
+        loadMovements();
+    }, []);
 
-    const totalIngresos = MOCK_MOVEMENTS.filter(m => m.tipo === 'INGRESO').reduce((acc, m) => acc + m.monto, 0);
-    const totalEgresos = MOCK_MOVEMENTS.filter(m => m.tipo === 'EGRESO').reduce((acc, m) => acc + m.monto, 0);
+    const loadMovements = async () => {
+        setLoading(true);
+        try {
+            const data = await ipc.invoke('get-movimientos', 1);
+            setMovements(data);
+        } catch (error) {
+            console.error('Error loading movements:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredMovements = movements.filter(m => filter === 'TODOS' || m.tipo === filter);
+
+    const totalIngresos = movements.filter(m => m.tipo === 'INGRESO').reduce((acc, m) => acc + m.monto, 0);
+    const totalEgresos = movements.filter(m => m.tipo === 'EGRESO').reduce((acc, m) => acc + m.monto, 0);
     const balance = totalIngresos - totalEgresos;
 
     return (
@@ -99,9 +111,24 @@ export default function Finance() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredMovements.map((mov) => (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <p className="font-medium">Cargando movimientos...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredMovements.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                                        No se encontraron movimientos registrados
+                                    </td>
+                                </tr>
+                            ) : filteredMovements.map((mov) => (
                                 <tr key={mov.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm text-slate-500">{mov.fecha}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-500">{new Date(mov.fecha).toLocaleString()}</td>
                                     <td className="px-6 py-4 font-medium text-slate-700">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${mov.tipo === 'INGRESO' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
@@ -111,7 +138,7 @@ export default function Finance() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-500">
-                                        <span className="bg-slate-100 px-2.5 py-1 rounded-md">{mov.metodo}</span>
+                                        <span className="bg-slate-100 px-2.5 py-1 rounded-md">{mov.metodo || 'Venta Terminal'}</span>
                                     </td>
                                     <td className={`px-6 py-4 text-right font-bold ${mov.tipo === 'INGRESO' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                         {mov.tipo === 'INGRESO' ? '+' : '-'}${mov.monto.toLocaleString('es-AR')}

@@ -8,6 +8,8 @@ import StoreIcon from '@mui/icons-material/Store';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
+import config from '../config.json';
+
 const navItems = [
     { path: '/', label: 'Panel de Control', icon: <DashboardIcon /> },
     { path: '/pos', label: 'Punto de Venta', icon: <PointOfSaleIcon /> },
@@ -31,8 +33,8 @@ export default function Layout() {
                         <StoreIcon />
                     </div>
                     <div>
-                        <h1 className="font-bold text-lg leading-tight text-slate-900">CommerceOS</h1>
-                        <p className="text-xs text-slate-500 font-medium">Pro Management</p>
+                        <h1 className="font-bold text-lg leading-tight text-slate-900">{config.businessName}</h1>
+                        <p className="text-xs text-slate-500 font-medium">{config.tagline}</p>
                     </div>
                 </div>
 
@@ -54,8 +56,8 @@ export default function Layout() {
                                 key={item.path}
                                 to={item.path}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                        ? 'bg-primary-50 text-primary-700 shadow-sm'
-                                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                    ? 'bg-primary-50 text-primary-700 shadow-sm'
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                     }`}
                             >
                                 <div className={`${isActive ? 'text-primary-600' : 'text-slate-400'} transition-colors`}>
