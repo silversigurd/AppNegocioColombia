@@ -8,6 +8,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SearchIcon from '@mui/icons-material/Search';
 import PrintIcon from '@mui/icons-material/Print';
 import Ticket from '../components/Ticket';
+import PedidoTicket from '../components/PedidoTicket';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -61,6 +62,11 @@ export default function Dashboard() {
     const [selectedTicketData, setSelectedTicketData] = useState<any>(null);
     const [selectedTicketItems, setSelectedTicketItems] = useState<any[]>([]);
 
+    // Pedido Ticket View State (For Egresos from Providers)
+    const [isPedidoModalOpen, setIsPedidoModalOpen] = useState(false);
+    const [selectedPedidoData, setSelectedPedidoData] = useState<any>(null);
+    const [selectedPedidoItems, setSelectedPedidoItems] = useState<any[]>([]);
+
     useEffect(() => {
         loadData();
     }, []);
@@ -94,22 +100,39 @@ export default function Dashboard() {
         }
     };
 
-    const handleViewTicket = async (ventaId: number) => {
+    const handleViewTicket = async (movimiento: any) => {
         try {
             const { ipc } = await import('../utils/ipc');
-            const [venta, items] = await Promise.all([
-                ipc.invoke('get-venta-por-id', ventaId),
-                ipc.invoke('get-venta-detalle', ventaId)
-            ]);
 
-            if (venta) {
-                setSelectedTicketData(venta);
-                setSelectedTicketItems(items || []);
-                setIsTicketModalOpen(true);
+            // 1. Es una Venta (INGRESO)
+            if (movimiento.venta_id) {
+                const [venta, items] = await Promise.all([
+                    ipc.invoke('get-venta-por-id', movimiento.venta_id),
+                    ipc.invoke('get-venta-detalle', movimiento.venta_id)
+                ]);
+
+                if (venta) {
+                    setSelectedTicketData(venta);
+                    setSelectedTicketItems(items || []);
+                    setIsTicketModalOpen(true);
+                }
+            }
+            // 2. Es un Egreso linkeado a una Orden de Compra (PEDIDO)
+            else if (movimiento.pedido_id) {
+                const [pedido, items] = await Promise.all([
+                    ipc.invoke('get-pedido-por-id', movimiento.pedido_id),
+                    ipc.invoke('get-detalle-pedido', movimiento.pedido_id)
+                ]);
+
+                if (pedido) {
+                    setSelectedPedidoData(pedido);
+                    setSelectedPedidoItems(items || []);
+                    setIsPedidoModalOpen(true);
+                }
             }
         } catch (error) {
-            console.error('Error fetching ticket details:', error);
-            alert('Error al obtener los detalles del ticket.');
+            console.error('Error fetching details:', error);
+            alert('Error al obtener los detalles del movimiento.');
         }
     };
 
@@ -222,8 +245,8 @@ export default function Dashboard() {
                             displayMovimientos.map((mov, i) => (
                                 <div
                                     key={mov.id || i}
-                                    onClick={() => mov.venta_id && handleViewTicket(mov.venta_id)}
-                                    className={`flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 group ${mov.venta_id ? 'cursor-pointer' : ''}`}
+                                    onClick={() => (mov.venta_id || mov.pedido_id) && handleViewTicket(mov)}
+                                    className={`flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 group ${(mov.venta_id || mov.pedido_id) ? 'cursor-pointer' : ''}`}
                                 >
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${mov.tipo === 'INGRESO' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
                                         {mov.tipo === 'INGRESO' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
@@ -231,7 +254,7 @@ export default function Dashboard() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between">
                                             <p className="text-sm font-bold text-slate-700 truncate group-hover:text-primary-600 transition-colors">{mov.concepto}</p>
-                                            {mov.venta_id && (
+                                            {(mov.venta_id || mov.pedido_id) && (
                                                 <ReceiptIcon className="text-slate-300 group-hover:text-primary-400 scale-75 opacity-0 group-hover:opacity-100 transition-all" fontSize="small" />
                                             )}
                                         </div>
@@ -330,15 +353,21 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Hidden Ticket for Printing */}
+            {/* Venta Ticket Print Wrapper (Hidden by default, used internally by Ticket.tsx logic if needed, but here we just render the new Ticket modal component) */}
             {isTicketModalOpen && selectedTicketData && (
                 <Ticket
-                    id={selectedTicketData.id}
-                    fecha={selectedTicketData.fecha}
+                    ventaData={selectedTicketData}
                     items={selectedTicketItems}
-                    total={selectedTicketData.total}
-                    subtotal={selectedTicketData.subtotal}
-                    impuestos={selectedTicketData.impuestos}
+                    onClose={() => setIsTicketModalOpen(false)}
+                />
+            )}
+
+            {/* Pedido Ticket Modal */}
+            {isPedidoModalOpen && selectedPedidoData && (
+                <PedidoTicket
+                    pedidoData={selectedPedidoData}
+                    items={selectedPedidoItems}
+                    onClose={() => setIsPedidoModalOpen(false)}
                 />
             )}
         </div>

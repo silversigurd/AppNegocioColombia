@@ -3,12 +3,26 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import PrintIcon from '@mui/icons-material/Print';
 import { ipc } from '../utils/ipc';
+import Ticket from '../components/Ticket';
+import PedidoTicket from '../components/PedidoTicket';
 
 export default function Finance() {
     const [movements, setMovements] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('TODOS');
+
+    // Ticket View State (Sales)
+    const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+    const [selectedTicketData, setSelectedTicketData] = useState<any>(null);
+    const [selectedTicketItems, setSelectedTicketItems] = useState<any[]>([]);
+
+    // Pedido Ticket View State (Purchase Orders)
+    const [isPedidoModalOpen, setIsPedidoModalOpen] = useState(false);
+    const [selectedPedidoData, setSelectedPedidoData] = useState<any>(null);
+    const [selectedPedidoItems, setSelectedPedidoItems] = useState<any[]>([]);
 
     useEffect(() => {
         loadMovements();
@@ -23,6 +37,40 @@ export default function Finance() {
             console.error('Error loading movements:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleViewDetails = async (movimiento: any) => {
+        try {
+            // 1. Venta (INGRESO)
+            if (movimiento.venta_id) {
+                const [venta, items] = await Promise.all([
+                    ipc.invoke('get-venta-por-id', movimiento.venta_id),
+                    ipc.invoke('get-venta-detalle', movimiento.venta_id)
+                ]);
+
+                if (venta) {
+                    setSelectedTicketData(venta);
+                    setSelectedTicketItems(items || []);
+                    setIsTicketModalOpen(true);
+                }
+            }
+            // 2. Pedido (EGRESO)
+            else if (movimiento.pedido_id) {
+                const [pedido, items] = await Promise.all([
+                    ipc.invoke('get-pedido-por-id', movimiento.pedido_id),
+                    ipc.invoke('get-detalle-pedido', movimiento.pedido_id)
+                ]);
+
+                if (pedido) {
+                    setSelectedPedidoData(pedido);
+                    setSelectedPedidoItems(items || []);
+                    setIsPedidoModalOpen(true);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching details:', error);
+            alert('Error al obtener los detalles del movimiento.');
         }
     };
 
@@ -127,14 +175,23 @@ export default function Finance() {
                                     </td>
                                 </tr>
                             ) : filteredMovements.map((mov) => (
-                                <tr key={mov.id} className="hover:bg-slate-50 transition-colors">
+                                <tr
+                                    key={mov.id}
+                                    onClick={() => (mov.venta_id || mov.pedido_id) && handleViewDetails(mov)}
+                                    className={`transition-colors border-b border-slate-50 ${(mov.venta_id || mov.pedido_id) ? 'cursor-pointer hover:bg-slate-50 group' : ''}`}
+                                >
                                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(mov.fecha).toLocaleString()}</td>
                                     <td className="px-6 py-4 font-medium text-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${mov.tipo === 'INGRESO' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
-                                                {mov.tipo === 'INGRESO' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${mov.tipo === 'INGRESO' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                                                    {mov.tipo === 'INGRESO' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+                                                </div>
+                                                {mov.concepto}
                                             </div>
-                                            {mov.concepto}
+                                            {(mov.venta_id || mov.pedido_id) && (
+                                                <ReceiptIcon className="text-slate-300 group-hover:text-primary-400 scale-75 opacity-0 group-hover:opacity-100 transition-all" />
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-500">
@@ -150,6 +207,103 @@ export default function Finance() {
                 </div>
             </div>
 
+            {/* Modals for Details */}
+            {isTicketModalOpen && selectedTicketData && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <ReceiptIcon className="text-primary-600" />
+                                    Detalle de Ticket #{selectedTicketData.id}
+                                </h2>
+                                <p className="text-[10px] font-black uppercase text-slate-400 mt-1">
+                                    {new Date(selectedTicketData.fecha).toLocaleString('es-AR')}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="p-2 hover:bg-primary-50 text-primary-600 rounded-full transition-colors"
+                                    title="Imprimir Ticket"
+                                >
+                                    <PrintIcon />
+                                </button>
+                                <button onClick={() => setIsTicketModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                                    <CloseIcon />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="space-y-4 max-h-[300px] overflow-y-auto mb-6 pr-2 custom-scrollbar">
+                                {selectedTicketItems.map((item: any, i: number) => (
+                                    <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3">
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-slate-700">{item.producto_nombre}</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                                                {item.cantidad} x ${item.precio_unitario.toLocaleString('es-AR')}
+                                            </p>
+                                        </div>
+                                        <p className="text-sm font-black text-slate-800">
+                                            ${item.subtotal.toLocaleString('es-AR')}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
+                                <div className="flex justify-between text-xs font-bold text-slate-500">
+                                    <span>Subtotal</span>
+                                    <span>${selectedTicketData.subtotal.toLocaleString('es-AR')}</span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-slate-500">
+                                    <span>IVA / Impuestos</span>
+                                    <span>${selectedTicketData.impuestos.toLocaleString('es-AR')}</span>
+                                </div>
+                                <div className="flex justify-between text-lg font-black text-slate-800 pt-2 border-t border-slate-200">
+                                    <span>TOTAL</span>
+                                    <span className="text-primary-600">${selectedTicketData.total.toLocaleString('es-AR')}</span>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setIsTicketModalOpen(false)}
+                                className="w-full mt-6 py-4 rounded-2xl font-bold text-white bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 transition-all active:scale-95"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isTicketModalOpen && selectedTicketData && (
+                <Ticket
+                    ventaData={selectedTicketData}
+                    items={selectedTicketItems}
+                    onClose={() => setIsTicketModalOpen(false)}
+                />
+            )}
+
+            {isPedidoModalOpen && selectedPedidoData && (
+                <PedidoTicket
+                    pedidoData={selectedPedidoData}
+                    items={selectedPedidoItems}
+                    onClose={() => setIsPedidoModalOpen(false)}
+                />
+            )}
         </div>
     );
 }
+
+// Icon for closing modal
+function CloseIcon() {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    );
+}
+

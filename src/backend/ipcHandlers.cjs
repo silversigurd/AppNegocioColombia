@@ -329,7 +329,175 @@ function setupIpcHandlers() {
             });
         });
     });
-}
+    // --- PEDIDOS (ÓRDENES DE COMPRA) ---
+    ipcMain.handle('get-pedidos-por-proveedor', async (event, proveedor_id, sucursal_id) => {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT * FROM Pedidos 
+                WHERE proveedor_id = ? AND sucursal_id = ?
+                ORDER BY fecha DESC
+            `;
+            db.all(query, [proveedor_id, sucursal_id], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
 
+    ipcMain.handle('get-detalle-pedido', async (event, pedido_id) => {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT dp.*, p.nombre as producto_nombre, p.codigo
+                FROM DetallesPedido dp
+                JOIN Productos p ON dp.producto_id = p.id
+                WHERE dp.pedido_id = ?
+            `;
+            db.all(query, [pedido_id], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
+
+    ipcMain.handle('save-pedido', async (event, pedidoData) => {
+        const { proveedor_id, sucursal_id, total, items } = pedidoData;
+
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+
+                const stmtPedido = db.prepare('INSERT INTO Pedidos (proveedor_id, sucursal_id, total, estado, pagado) VALUES (?, ?, ?, ?, ?)');
+                stmtPedido.run(proveedor_id, sucursal_id, total, 'PENDIENTE', 0, function (err) {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        return reject(err);
+                    }
+
+                    const pedidoId = this.lastID;
+                    const stmtDetalle = db.prepare('INSERT INTO DetallesPedido (pedido_id, producto_id, cantidad, precio_compra_unitario, subtotal) VALUES (?, ?, ?, ?, ?)');
+
+                    items.forEach(item => {
+                        stmtDetalle.run(pedidoId, item.producto_id, item.cantidad, item.precio_compra, item.subtotal);
+                    });
+
+                    stmtDetalle.finalize();
+
+                    db.run('COMMIT', (err) => {
+                        if (err) reject(err);
+                        else resolve({ success: true, pedidoId });
+                    });
+                });
+            });
+        });
+    });
+
+    ipcMain.handle('confirmar-recepcion-pedido', async (event, pedido_id, sucursal_id) => {
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+
+                // 1. Marcar como RECIBIDO
+                db.run("UPDATE Pedidos SET estado = 'RECIBIDO' WHERE id = ?", [pedido_id], function (err) {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        return reject(err);
+                    }
+
+                    // 2. Traer los detalles para sumar al inventario y actualizar el costo
+                    db.all("SELECT * FROM DetallesPedido WHERE pedido_id = ?", [pedido_id], (err, detalles) => {
+                        if (err) {
+                            db.run('ROLLBACK');
+                            return reject(err);
+                        }
+
+                        const stmtCosto = db.prepare("UPDATE Productos SET precio_compra = ? WHERE id = ?");
+                        const stmtInventario = db.prepare(`
+                            INSERT INTO Inventario (producto_id, sucursal_id, cantidad) 
+                            VALUES (?, ?, ?) 
+                            ON CONFLICT(producto_id, sucursal_id) 
+                            DO UPDATE SET cantidad = cantidad + ?
+                        `);
+
+                        detalles.forEach(d => {
+                            stmtCosto.run(d.precio_compra_unitario, d.producto_id);
+                            stmtInventario.run(d.producto_id, sucursal_id, d.cantidad, d.cantidad);
+                        });
+
+                        stmtCosto.finalize();
+                        stmtInventario.finalize();
+
+                        db.run('COMMIT', (err) => {
+                            if (err) reject(err);
+                            else resolve({ success: true });
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    ipcMain.handle('registrar-pago-pedido', async (event, pedido_id, sucursal_id, proveedor_id, total, pago_inmediato) => {
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+
+                // 1. Marcar el pedido como pagado
+                db.run("UPDATE Pedidos SET pagado = 1 WHERE id = ?", [pedido_id], function (err) {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        return reject(err);
+                    }
+
+                    if (pago_inmediato) {
+                        // Descontar plata de la caja
+                        db.run("INSERT INTO MovimientosCaja (tipo, monto, concepto, sucursal_id, pedido_id) VALUES (?, ?, ?, ?, ?)",
+                            ['EGRESO', total, `Pago Orden Compra #${pedido_id}`, sucursal_id, pedido_id],
+                            (err) => {
+                                if (err) {
+                                    db.run('ROLLBACK');
+                                    return reject(err);
+                                }
+                                db.run('COMMIT', (err) => {
+                                    if (err) reject(err);
+                                    else resolve({ success: true, type: 'caja' });
+                                });
+                            }
+                        );
+                    } else {
+                        // Queda debiendo en Cuenta Corriente (Aumentamos el saldo del proveedor)
+                        db.run("UPDATE Proveedores SET saldo_actual = saldo_actual + ? WHERE id = ?",
+                            [total, proveedor_id],
+                            (err) => {
+                                if (err) {
+                                    db.run('ROLLBACK');
+                                    return reject(err);
+                                }
+                                db.run('COMMIT', (err) => {
+                                    if (err) reject(err);
+                                    else resolve({ success: true, type: 'cc' });
+                                });
+                            }
+                        );
+                    }
+                });
+            });
+        });
+    });
+
+    ipcMain.handle('get-pedido-por-id', async (event, pedido_id) => {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT pe.*, pro.nombre as proveedor_nombre, pro.cuit as proveedor_cuit
+                FROM Pedidos pe
+                JOIN Proveedores pro ON pe.proveedor_id = pro.id
+                WHERE pe.id = ?
+            `;
+            db.get(query, [pedido_id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+    });
+}
 
 module.exports = { setupIpcHandlers };

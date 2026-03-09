@@ -73,7 +73,18 @@ function initDb() {
       plazo_pago INTEGER DEFAULT 0,
       cbu TEXT,
       rubro TEXT,
-      saldo_actual REAL DEFAULT 0
+      saldo_actual REAL DEFAULT 0,
+      preventista_nombre TEXT,
+      preventista_telefono TEXT,
+      dia_visita TEXT,
+      dia_entrega TEXT,
+      limite_credito REAL DEFAULT 0,
+      minimo_compra REAL DEFAULT 0,
+      moneda_compra TEXT DEFAULT 'ARS',
+      retencion_ganancias REAL DEFAULT 0,
+      retencion_iibb REAL DEFAULT 0,
+      vencimiento_certificado_exencion TEXT,
+      saldo_envases INTEGER DEFAULT 0
     )`, (err) => {
       if (!err) {
         const nuevasColumnas = [
@@ -87,7 +98,18 @@ function initDb() {
           "ALTER TABLE Proveedores ADD COLUMN plazo_pago INTEGER DEFAULT 0",
           "ALTER TABLE Proveedores ADD COLUMN cbu TEXT",
           "ALTER TABLE Proveedores ADD COLUMN rubro TEXT",
-          "ALTER TABLE Proveedores ADD COLUMN saldo_actual REAL DEFAULT 0"
+          "ALTER TABLE Proveedores ADD COLUMN saldo_actual REAL DEFAULT 0",
+          "ALTER TABLE Proveedores ADD COLUMN preventista_nombre TEXT",
+          "ALTER TABLE Proveedores ADD COLUMN preventista_telefono TEXT",
+          "ALTER TABLE Proveedores ADD COLUMN dia_visita TEXT",
+          "ALTER TABLE Proveedores ADD COLUMN dia_entrega TEXT",
+          "ALTER TABLE Proveedores ADD COLUMN limite_credito REAL DEFAULT 0",
+          "ALTER TABLE Proveedores ADD COLUMN minimo_compra REAL DEFAULT 0",
+          "ALTER TABLE Proveedores ADD COLUMN moneda_compra TEXT DEFAULT 'ARS'",
+          "ALTER TABLE Proveedores ADD COLUMN retencion_ganancias REAL DEFAULT 0",
+          "ALTER TABLE Proveedores ADD COLUMN retencion_iibb REAL DEFAULT 0",
+          "ALTER TABLE Proveedores ADD COLUMN vencimiento_certificado_exencion TEXT",
+          "ALTER TABLE Proveedores ADD COLUMN saldo_envases INTEGER DEFAULT 0"
         ];
         nuevasColumnas.forEach(col => db.run(col, () => { })); // Ignore duplicate errors
       }
@@ -161,8 +183,40 @@ function initDb() {
       concepto TEXT NOT NULL,
       sucursal_id INTEGER NOT NULL,
       venta_id INTEGER,
+      pedido_id INTEGER,
       FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id),
-      FOREIGN KEY(venta_id) REFERENCES Ventas(id)
+      FOREIGN KEY(venta_id) REFERENCES Ventas(id),
+      FOREIGN KEY(pedido_id) REFERENCES Pedidos(id)
+    )`, (err) => {
+      // Migración retroactiva si ya existe pero le falta la columna
+      if (!err) {
+        db.run("ALTER TABLE MovimientosCaja ADD COLUMN pedido_id INTEGER", () => { }); // Ignore duplicate errors
+      }
+    });
+
+    // 11. Pedidos (Ordenes de Compra a Proveedores)
+    db.run(`CREATE TABLE IF NOT EXISTS Pedidos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proveedor_id INTEGER NOT NULL,
+      sucursal_id INTEGER NOT NULL,
+      fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+      estado TEXT DEFAULT 'PENDIENTE',
+      total REAL NOT NULL,
+      pagado BOOLEAN DEFAULT 0,
+      FOREIGN KEY(proveedor_id) REFERENCES Proveedores(id),
+      FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
+    )`);
+
+    // 12. DetallesPedido
+    db.run(`CREATE TABLE IF NOT EXISTS DetallesPedido (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pedido_id INTEGER NOT NULL,
+      producto_id INTEGER NOT NULL,
+      cantidad INTEGER NOT NULL,
+      precio_compra_unitario REAL NOT NULL,
+      subtotal REAL NOT NULL,
+      FOREIGN KEY(pedido_id) REFERENCES Pedidos(id),
+      FOREIGN KEY(producto_id) REFERENCES Productos(id)
     )`);
 
     // Insertar Sucursal Principal por defecto si no existe
