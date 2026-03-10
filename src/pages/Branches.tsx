@@ -28,6 +28,7 @@ interface Empleado {
     categoria_cct: string;
     sueldo_basico: number;
     jornada_laboral: string;
+    horas_parcial?: number;
     contrato_filepath?: string;
 }
 
@@ -40,10 +41,25 @@ export default function Branches() {
     const [liquidaciones, setLiquidaciones] = useState<any[]>([]);
     const [payrollPreview, setPayrollPreview] = useState<any>(null);
 
+    // CCT Categories Management
+    const [categoriasCCT, setCategoriasCCT] = useState<string[]>(() => {
+        const saved = localStorage.getItem('categorias_cct_list');
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) { }
+        }
+        return ['Vendedor A', 'Vendedor B', 'Cajero A', 'Cajero B', 'Administrativo A', 'Maestranza A'];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('categorias_cct_list', JSON.stringify(categoriasCCT));
+    }, [categoriasCCT]);
+    const [newCategoria, setNewCategoria] = useState('');
+    const [isAddingCategoria, setIsAddingCategoria] = useState(false);
+
     const [formData, setFormData] = useState<Empleado>({
         nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
         localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-        sueldo_basico: 0, jornada_laboral: ''
+        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0
     });
 
     useEffect(() => {
@@ -66,10 +82,44 @@ export default function Branches() {
             setFormData({
                 nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
                 localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-                sueldo_basico: 0, jornada_laboral: 'Completa'
+                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0
             });
         }
         setIsFormOpen(true);
+    };
+
+    const handleDniChange = (val: string) => {
+        const numbers = val.replace(/\D/g, '').slice(0, 8);
+        setFormData(prev => ({ ...prev, dni: numbers }));
+    };
+
+    const handleCuilChange = (val: string) => {
+        let numbers = val.replace(/\D/g, '').slice(0, 11);
+        let formatted = '';
+        if (numbers.length > 0) formatted += numbers.slice(0, 2);
+        if (numbers.length > 2) formatted += '-' + numbers.slice(2, 10);
+        if (numbers.length > 10) formatted += '-' + numbers.slice(10, 11);
+        setFormData(prev => ({ ...prev, cuil: formatted }));
+    };
+
+    const handleAddCategoria = () => {
+        const cat = newCategoria.trim();
+        if (cat) {
+            setCategoriasCCT(prev => {
+                if (!prev.includes(cat)) {
+                    return [...prev, cat];
+                }
+                return prev;
+            });
+            setFormData(prev => ({ ...prev, categoria_cct: cat }));
+            setNewCategoria('');
+            setIsAddingCategoria(false);
+        }
+    };
+
+    const handleDeleteCategoria = (cat: string) => {
+        setCategoriasCCT(prev => prev.filter(c => c !== cat));
+        if (formData.categoria_cct === cat) setFormData(prev => ({ ...prev, categoria_cct: '' }));
     };
 
     const handleSaveEmpleado = async (e: React.FormEvent) => {
@@ -336,11 +386,11 @@ export default function Branches() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">DNI</label>
-                                    <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} />
+                                    <input required type="text" maxLength={8} className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.dni} onChange={e => handleDniChange(e.target.value)} placeholder="Solo números (Max 8)" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CUIL (Sin guiones)</label>
-                                    <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.cuil} onChange={e => setFormData({ ...formData, cuil: e.target.value })} />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CUIL</label>
+                                    <input required type="text" maxLength={13} className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.cuil} onChange={e => handleCuilChange(e.target.value)} placeholder="00-00000000-0" />
                                 </div>
 
                                 <div className="col-span-2">
@@ -353,15 +403,32 @@ export default function Branches() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Categoría CCT</label>
-                                    <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.categoria_cct} onChange={e => setFormData({ ...formData, categoria_cct: e.target.value })}>
-                                        <option value="">Seleccionar...</option>
-                                        <option value="Vendedor A">Vendedor A</option>
-                                        <option value="Vendedor B">Vendedor B</option>
-                                        <option value="Cajero A">Cajero A</option>
-                                        <option value="Cajero B">Cajero B</option>
-                                        <option value="Administrativo A">Administrativo A</option>
-                                        <option value="Maestranza A">Maestranza A</option>
-                                    </select>
+                                    <div className="flex gap-2">
+                                        {!isAddingCategoria ? (
+                                            <>
+                                                <select required className="flex-1 px-4 py-2 bg-slate-50 border rounded-xl" value={formData.categoria_cct} onChange={e => setFormData({ ...formData, categoria_cct: e.target.value })}>
+                                                    <option value="">Seleccionar...</option>
+                                                    {categoriasCCT.map(cat => (
+                                                        <option key={cat} value={cat}>{cat}</option>
+                                                    ))}
+                                                </select>
+                                                <button type="button" onClick={() => setIsAddingCategoria(true)} className="p-2 border rounded-xl hover:bg-slate-100 text-slate-500" title="Añadir nueva categoría">
+                                                    <AddIcon />
+                                                </button>
+                                                {formData.categoria_cct && (
+                                                    <button type="button" onClick={() => handleDeleteCategoria(formData.categoria_cct)} className="p-2 border rounded-xl hover:bg-rose-50 text-rose-500" title="Eliminar categoría seleccionada">
+                                                        <DeleteIcon />
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="flex w-full gap-2">
+                                                <input autoFocus type="text" className="flex-1 px-4 py-2 bg-slate-50 border rounded-xl" placeholder="Nueva Categoría" value={newCategoria} onChange={e => setNewCategoria(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCategoria())} />
+                                                <button type="button" onClick={handleAddCategoria} className="px-3 bg-emerald-600 text-white rounded-xl font-bold">OK</button>
+                                                <button type="button" onClick={() => { setIsAddingCategoria(false); setNewCategoria(''); }} className="p-2 border rounded-xl hover:bg-slate-100 text-slate-500"><CloseIcon /></button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Sueldo Básico ($)</label>
@@ -370,11 +437,17 @@ export default function Branches() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Jornada Laboral</label>
                                     <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.jornada_laboral} onChange={e => setFormData({ ...formData, jornada_laboral: e.target.value })}>
-                                        <option value="Completa">Completa (200hs)</option>
+                                        <option value="Completa">Completa</option>
                                         <option value="Media Jornada">Media Jornada</option>
                                         <option value="Parcial">Parcial (Específica)</option>
                                     </select>
                                 </div>
+                                {formData.jornada_laboral === 'Parcial' && (
+                                    <div className="animate-fade-in">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Horas Mensuales</label>
+                                        <input required type="number" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" placeholder="Ej: 120" value={formData.horas_parcial || ''} onChange={e => setFormData({ ...formData, horas_parcial: Number(e.target.value) })} />
+                                    </div>
+                                )}
 
                                 <div className="col-span-2">
                                     <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">Contacto y Obra Social</h4>

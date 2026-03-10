@@ -55,6 +55,7 @@ function initDb() {
       categoria_cct TEXT,
       sueldo_basico REAL,
       jornada_laboral TEXT,
+      horas_parcial INTEGER DEFAULT 0,
       contrato_filepath TEXT,
       FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
     )`, (err) => {
@@ -71,6 +72,7 @@ function initDb() {
           "ALTER TABLE Empleados ADD COLUMN categoria_cct TEXT",
           "ALTER TABLE Empleados ADD COLUMN sueldo_basico REAL",
           "ALTER TABLE Empleados ADD COLUMN jornada_laboral TEXT",
+          "ALTER TABLE Empleados ADD COLUMN horas_parcial INTEGER DEFAULT 0",
           "ALTER TABLE Empleados ADD COLUMN contrato_filepath TEXT"
         ];
         nuevasColumnasEmpleados.forEach(cmd => {

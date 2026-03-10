@@ -520,7 +520,7 @@ function setupIpcHandlers() {
         const {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
-            categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
+            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -528,13 +528,13 @@ function setupIpcHandlers() {
                 INSERT INTO Empleados (
                     nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
                     direccion, partido, localidad, obra_social, fecha_ingreso,
-                    categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
-                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, contrato_filepath || null
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true, id: this.lastID });
@@ -546,7 +546,7 @@ function setupIpcHandlers() {
         const {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
-            categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
+            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -554,13 +554,13 @@ function setupIpcHandlers() {
                 UPDATE Empleados SET 
                     nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
                     direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
-                    categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, contrato_filepath = ?
+                    categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?
                 WHERE id = ?
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
-                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, contrato_filepath || null, id
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null, id
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
