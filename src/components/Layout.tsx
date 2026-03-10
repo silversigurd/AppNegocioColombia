@@ -17,7 +17,7 @@ const navItems = [
     { path: '/clientes', label: 'Clientes', icon: <PeopleIcon /> },
     { path: '/proveedores', label: 'Proveedores', icon: <LocalShippingIcon /> },
     { path: '/caja', label: 'Caja y Finanzas', icon: <AccountBalanceWalletIcon /> },
-    { path: '/sucursales', label: 'Sucursales y RRHH', icon: <StoreIcon /> },
+    { path: '/sucursales', label: 'RRHH', icon: <StoreIcon /> },
 ];
 
 export default function Layout() {
@@ -27,7 +27,7 @@ export default function Layout() {
     return (
         <div className="flex h-screen w-full bg-slate-50 text-slate-800">
             {/* Sidebar - Premium Glassmorphism Look */}
-            <aside className="w-64 h-full bg-white border-r border-slate-200 shadow-xl flex flex-col z-10 transition-all duration-300">
+            <aside className="no-print w-64 h-full bg-white border-r border-slate-200 shadow-xl flex flex-col z-10 transition-all duration-300">
                 <div className="p-6 flex items-center gap-3 border-b border-slate-100">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
                         <StoreIcon />
@@ -84,7 +84,7 @@ export default function Layout() {
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
                 {/* Top Header if needed */}
-                <header className="h-16 border-b border-slate-200 bg-white/50 backdrop-blur-sm flex items-center px-8 shrink-0">
+                <header className="no-print h-16 border-b border-slate-200 bg-white/50 backdrop-blur-sm flex items-center px-8 shrink-0">
                     <h2 className="text-xl font-bold text-slate-800">
                         {navItems.find(i => i.path === location.pathname)?.label || 'Sistema'}
                     </h2>

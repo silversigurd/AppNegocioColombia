@@ -1,8 +1,11 @@
 {
     "businessName": "Comercio Pepito",
+    "businessCuit": "20-12345678-9",
+    "businessAddress": "Av. Principal 123",
     "tagline": "Administracion almacen",
     "theme": {
         "primary": "#4f46e5",
         "secondary": "#6366f1"
-    }
+    },
+    "printerProfile": "80mm"
 }

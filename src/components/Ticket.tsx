@@ -1,5 +1,6 @@
 import React from 'react';
 import config from '../config.json';
+import { getProfileWidth, centerText, divider, formatItemLine, formatTotalLine } from '../utils/ticketFormatter';
 
 interface TicketProps {
     // Accept either individual fields or a full ventaData object
@@ -14,7 +15,6 @@ interface TicketProps {
 }
 
 export default function Ticket({ id, fecha, items, total, subtotal, impuestos, ventaData }: TicketProps) {
-    // Resolve values from ventaData if provided, otherwise use individual props
     const ticketId = ventaData?.id ?? id;
     const ticketFecha = ventaData?.fecha ?? fecha;
     const ticketItems = (ventaData?.items ?? items) || [];
@@ -22,57 +22,48 @@ export default function Ticket({ id, fecha, items, total, subtotal, impuestos, v
     const ticketSubtotal = ventaData?.subtotal ?? subtotal ?? 0;
     const ticketImpuestos = ventaData?.impuestos ?? impuestos ?? 0;
 
+    const width = getProfileWidth(config.printerProfile || '80mm');
+    const border = divider(width, '-');
+
+    let ticketText = '';
+
+    // Header
+    ticketText += centerText(config.businessName || '', width) + '\n';
+    if (config.businessCuit) ticketText += centerText(`CUIT: ${config.businessCuit}`, width) + '\n';
+    if (config.businessAddress) ticketText += centerText(config.businessAddress, width) + '\n';
+    ticketText += centerText(config.tagline || '', width) + '\n';
+
+    ticketText += border + '\n';
+    ticketText += centerText(`TICKET DE VENTA #${ticketId}`, width) + '\n';
+    if (ticketFecha) ticketText += centerText(new Date(ticketFecha).toLocaleString('es-AR'), width) + '\n';
+    ticketText += border + '\n';
+
+    // Items
+    ticketItems.forEach((item: any) => {
+        const name = item.producto_nombre || item.nombre || 'Articulo';
+        const qty = item.cantidad || item.quantity || 1;
+        const sub = item.subtotal || (item.precio_venta * qty);
+
+        const priceText = `$${sub?.toLocaleString('es-AR')}`;
+        ticketText += formatItemLine(qty, name, priceText, width) + '\n';
+    });
+
+    ticketText += border + '\n';
+
+    // Totals
+    ticketText += formatTotalLine('Subtotal:', `$${ticketSubtotal.toLocaleString('es-AR')}`, width) + '\n';
+    ticketText += formatTotalLine('IVA/Impuestos:', `$${ticketImpuestos.toLocaleString('es-AR')}`, width) + '\n';
+    ticketText += formatTotalLine('TOTAL:', `$${ticketTotal.toLocaleString('es-AR')}`, width) + '\n';
+
+    ticketText += border + '\n';
+    ticketText += centerText('No valido como factura', width) + '\n';
+    ticketText += centerText('¡GRACIAS POR SU COMPRA!', width) + '\n';
+
     return (
-        <div className="print-only text-slate-900 font-mono text-xs w-[80mm] mx-auto p-4 bg-white">
-            <div className="text-center mb-6 space-y-1">
-                <h1 className="text-xl font-bold uppercase tracking-widest">{config.businessName}</h1>
-                <p className="text-[10px]">{config.tagline}</p>
-                <div className="border-y border-dashed border-slate-300 py-2 my-2">
-                    <p className="font-bold">TICKET DE VENTA #{ticketId}</p>
-                    <p>{ticketFecha ? new Date(ticketFecha).toLocaleString('es-AR') : ''}</p>
-                </div>
-            </div>
-
-            <div className="space-y-2 mb-6">
-                <div className="flex justify-between font-black border-b border-slate-200 pb-1 uppercase text-[9px]">
-                    <span className="w-1/2">Descripción</span>
-                    <span className="w-1/6 text-center">Cant</span>
-                    <span className="w-1/3 text-right">Total</span>
-                </div>
-                {ticketItems.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between items-start gap-1">
-                        <span className="w-1/2 truncate font-medium">{item.producto_nombre || item.nombre}</span>
-                        <span className="w-1/6 text-center">{item.cantidad}</span>
-                        <span className="w-1/3 text-right font-bold">${(item.subtotal || (item.precio_venta * (item.quantity || item.cantidad)))?.toLocaleString('es-AR')}</span>
-                    </div>
-                ))}
-            </div>
-
-            <div className="border-t border-dashed border-slate-300 pt-4 space-y-1">
-                <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>${ticketSubtotal.toLocaleString('es-AR')}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span>IVA / Impuestos:</span>
-                    <span>${ticketImpuestos.toLocaleString('es-AR')}</span>
-                </div>
-                <div className="flex justify-between text-base font-black pt-2 border-t border-slate-900 mt-2">
-                    <span>TOTAL:</span>
-                    <span>${ticketTotal.toLocaleString('es-AR')}</span>
-                </div>
-            </div>
-
-            <div className="mt-8 text-center space-y-2">
-                <p className="font-bold">¡GRACIAS POR SU COMPRA!</p>
-                <p className="text-[8px] opacity-70">Desarrollado por CommerceOS Pro</p>
-                <div className="flex justify-center mt-4">
-                    {/* Placeholder for QR if needed */}
-                    <div className="w-20 h-20 border border-slate-200 flex items-center justify-center text-[8px] text-slate-300">
-                        QR FISCAL
-                    </div>
-                </div>
-            </div>
+        <div className="print-only text-black bg-white mx-auto w-max p-4">
+            <pre className="font-mono text-[11px] whitespace-pre-wrap m-0 p-0 leading-tight">
+                {ticketText}
+            </pre>
         </div>
     );
 }

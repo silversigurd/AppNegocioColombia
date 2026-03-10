@@ -45,7 +45,66 @@ function initDb() {
       cargo TEXT,
       tarifa_hora REAL,
       sucursal_id INTEGER,
+      dni TEXT,
+      cuil TEXT,
+      direccion TEXT,
+      partido TEXT,
+      localidad TEXT,
+      obra_social TEXT,
+      fecha_ingreso TEXT,
+      categoria_cct TEXT,
+      sueldo_basico REAL,
+      jornada_laboral TEXT,
+      contrato_filepath TEXT,
       FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
+    )`, (err) => {
+      if (!err) {
+        // Upgrade existing table if columns are missing
+        const nuevasColumnasEmpleados = [
+          "ALTER TABLE Empleados ADD COLUMN dni TEXT",
+          "ALTER TABLE Empleados ADD COLUMN cuil TEXT",
+          "ALTER TABLE Empleados ADD COLUMN direccion TEXT",
+          "ALTER TABLE Empleados ADD COLUMN partido TEXT",
+          "ALTER TABLE Empleados ADD COLUMN localidad TEXT",
+          "ALTER TABLE Empleados ADD COLUMN obra_social TEXT",
+          "ALTER TABLE Empleados ADD COLUMN fecha_ingreso TEXT",
+          "ALTER TABLE Empleados ADD COLUMN categoria_cct TEXT",
+          "ALTER TABLE Empleados ADD COLUMN sueldo_basico REAL",
+          "ALTER TABLE Empleados ADD COLUMN jornada_laboral TEXT",
+          "ALTER TABLE Empleados ADD COLUMN contrato_filepath TEXT"
+        ];
+        nuevasColumnasEmpleados.forEach(cmd => {
+          db.run(cmd, (innerErr) => {
+            if (innerErr && !innerErr.message.includes('duplicate column name')) {
+              console.error(`Error al añadir columna a Empleados: ${cmd}`, innerErr.message);
+            }
+          });
+        });
+      }
+    });
+
+    // 2.1 Liquidaciones (Recibos de Sueldo)
+    db.run(`CREATE TABLE IF NOT EXISTS Liquidaciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      empleado_id INTEGER NOT NULL,
+      periodo TEXT NOT NULL,
+      fecha_pago TEXT,
+      banco_deposito TEXT,
+      total_bruto REAL DEFAULT 0,
+      total_retenciones REAL DEFAULT 0,
+      total_neto REAL DEFAULT 0,
+      FOREIGN KEY(empleado_id) REFERENCES Empleados(id)
+    )`);
+
+    // 2.2 Conceptos Liquidacion (Detalle del Recibo)
+    db.run(`CREATE TABLE IF NOT EXISTS ConceptosLiquidacion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      liquidacion_id INTEGER NOT NULL,
+      tipo TEXT NOT NULL, 
+      descripcion TEXT NOT NULL,
+      unidad TEXT,
+      importe REAL NOT NULL,
+      FOREIGN KEY(liquidacion_id) REFERENCES Liquidaciones(id) ON DELETE CASCADE
     )`);
 
     // 3. Clientes
@@ -111,7 +170,14 @@ function initDb() {
           "ALTER TABLE Proveedores ADD COLUMN vencimiento_certificado_exencion TEXT",
           "ALTER TABLE Proveedores ADD COLUMN saldo_envases INTEGER DEFAULT 0"
         ];
-        nuevasColumnas.forEach(col => db.run(col, () => { })); // Ignore duplicate errors
+        nuevasColumnas.forEach(cmd => {
+          db.run(cmd, (innerErr) => {
+            // Ignoramos el error si la columna ya existe
+            if (innerErr && !innerErr.message.includes('duplicate column name')) {
+              console.error(`Error al añadir columna a Proveedores: ${cmd}`, innerErr.message);
+            }
+          });
+        });
       }
     });
 

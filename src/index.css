@@ -84,3 +84,31 @@ input[type="number"] {
   -moz-appearance: textfield;
   /* Firefox */
 }
+
+/* --- Print Styling --- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible;
+  }
+
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Force hide anything explicitly marked no-print even within print blocks */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}

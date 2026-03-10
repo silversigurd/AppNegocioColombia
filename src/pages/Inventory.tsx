@@ -6,6 +6,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { utils, writeFile } from 'xlsx';
 
 import { ipc } from '../utils/ipc';
 
@@ -157,6 +164,64 @@ export default function Inventory() {
         (p.codigo || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // --- EXPORT LOGIC ---
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+    const handleExportExcel = () => {
+        setIsExportMenuOpen(false);
+        const exportData = products.map(p => ({
+            'Código': p.codigo,
+            'Nombre': p.nombre,
+            'Categoría': p.categoria_nombre || 'General',
+            'Stock Disponible': p.stock,
+            'Costo Unitario ($)': p.precio_compra,
+            'Precio Venta ($)': p.precio_venta,
+            'Valorización Costo ($)': p.stock * p.precio_compra,
+            'Valorización Venta ($)': p.stock * p.precio_venta
+        }));
+
+        const wb = utils.book_new();
+        const ws = utils.json_to_sheet(exportData);
+        utils.book_append_sheet(wb, ws, 'Inventario');
+        writeFile(wb, `Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handleExportPDF = () => {
+        setIsExportMenuOpen(false);
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text('Reporte de Inventario', 14, 22);
+        doc.setFontSize(11);
+        doc.setTextColor(100);
+        doc.text(`Fecha de emisión: ${new Date().toLocaleString('es-AR')}`, 14, 30);
+
+        const tableData = products.map(p => [
+            p.codigo,
+            p.nombre,
+            p.categoria_nombre || 'General',
+            p.stock.toString(),
+            `$${p.precio_compra.toLocaleString('es-AR')}`,
+            `$${p.precio_venta.toLocaleString('es-AR')}`
+        ]);
+
+        autoTable(doc, {
+            startY: 35,
+            head: [['Código', 'Producto', 'Categoría', 'Stock', 'Costo Unit.', 'Pr. Venta']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229] }, // Primary color
+            styles: { fontSize: 8 },
+            columnStyles: {
+                3: { halign: 'center', fontStyle: 'bold' },
+                4: { halign: 'right' },
+                5: { halign: 'right', fontStyle: 'bold' }
+            }
+        });
+
+        doc.save(`Inventario_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     return (
         <div className="flex flex-col h-full animate-fade-in text-slate-800">
             {/* Header section */}
@@ -175,8 +240,8 @@ export default function Inventory() {
             </div>
 
             {/* Toolbar / Filters */}
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 mb-6">
-                <div className="flex-1 relative">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between gap-4 mb-6">
+                <div className="flex-1 max-w-lg relative">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fontSize="small" />
                     <input
                         type="text"
@@ -185,6 +250,36 @@ export default function Inventory() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                </div>
+                <div className="flex items-center gap-2 relative">
+                    <button
+                        onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm active:scale-95"
+                    >
+                        <FileDownloadIcon fontSize="small" />
+                        <span>Exportar Inventario</span>
+                        <KeyboardArrowDownIcon fontSize="small" className={`transform transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Export Dropdown Menu */}
+                    {isExportMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden z-20 animate-fade-in">
+                            <button
+                                onClick={handleExportPDF}
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm font-bold text-slate-700 flex items-center gap-3 transition-colors border-b border-slate-50"
+                            >
+                                <PictureAsPdfIcon fontSize="small" className="text-rose-500" />
+                                Exportar PDF
+                            </button>
+                            <button
+                                onClick={handleExportExcel}
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm font-bold text-slate-700 flex items-center gap-3 transition-colors"
+                            >
+                                <TableChartIcon fontSize="small" className="text-emerald-500" />
+                                Exportar Excel
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 

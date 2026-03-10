@@ -1,5 +1,7 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const db = require('./db.cjs');
+const fs = require('fs');
+const path = require('path');
 
 function setupIpcHandlers() {
     // Ejemplos básicos de operaciones (se pueden expandir según necesidad)
@@ -495,6 +497,171 @@ function setupIpcHandlers() {
             db.get(query, [pedido_id], (err, row) => {
                 if (err) reject(err);
                 else resolve(row);
+            });
+        });
+    });
+    // --- EMPLEADOS (RRHH) ---
+    ipcMain.handle('get-empleados', async (event, sucursal_id) => {
+        return new Promise((resolve, reject) => {
+            let query = 'SELECT * FROM Empleados';
+            const params = [];
+            if (sucursal_id) {
+                query += ' WHERE sucursal_id = ?';
+                params.push(sucursal_id);
+            }
+            db.all(query, params, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
+
+    ipcMain.handle('save-empleado', async (event, empleado) => {
+        const {
+            nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+            direccion, partido, localidad, obra_social, fecha_ingreso,
+            categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
+        } = empleado;
+
+        return new Promise((resolve, reject) => {
+            const query = `
+                INSERT INTO Empleados (
+                    nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+                    direccion, partido, localidad, obra_social, fecha_ingreso,
+                    categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            db.run(query, [
+                nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
+                direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, contrato_filepath || null
+            ], function (err) {
+                if (err) reject(err);
+                else resolve({ success: true, id: this.lastID });
+            });
+        });
+    });
+
+    ipcMain.handle('update-empleado', async (event, empleado) => {
+        const {
+            id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+            direccion, partido, localidad, obra_social, fecha_ingreso,
+            categoria_cct, sueldo_basico, jornada_laboral, contrato_filepath
+        } = empleado;
+
+        return new Promise((resolve, reject) => {
+            const query = `
+                UPDATE Empleados SET 
+                    nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
+                    direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
+                    categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, contrato_filepath = ?
+                WHERE id = ?
+            `;
+            db.run(query, [
+                nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
+                direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, contrato_filepath || null, id
+            ], function (err) {
+                if (err) reject(err);
+                else resolve({ success: true });
+            });
+        });
+    });
+
+    ipcMain.handle('delete-empleado', async (event, id) => {
+        return new Promise((resolve, reject) => {
+            db.run('DELETE FROM Empleados WHERE id = ?', [id], function (err) {
+                if (err) reject(err);
+                else resolve({ success: true });
+            });
+        });
+    });
+
+    ipcMain.handle('upload-contrato-empleado', async (event, sourcePath, empleadoId) => {
+        try {
+            const userDataPath = app.getPath('userData');
+            const contractsDir = path.join(userDataPath, 'contratos_rrhh');
+
+            if (!fs.existsSync(contractsDir)) {
+                fs.mkdirSync(contractsDir, { recursive: true });
+            }
+
+            const fileName = `contrato_${empleadoId}_${Date.now()}${path.extname(sourcePath)}`;
+            const destPath = path.join(contractsDir, fileName);
+
+            fs.copyFileSync(sourcePath, destPath);
+
+            // Update user in DB with new path
+            return new Promise((resolve, reject) => {
+                db.run('UPDATE Empleados SET contrato_filepath = ? WHERE id = ?', [destPath, empleadoId], function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true, filepath: destPath });
+                });
+            });
+        } catch (error) {
+            console.error('Error uploading contract:', error);
+            throw error;
+        }
+    });
+
+    // --- LIQUIDACIONES DE SUELDO ---
+    ipcMain.handle('save-liquidacion', async (event, liquidacionData) => {
+        const { empleado_id, periodo, fecha_pago, banco_deposito, total_bruto, total_retenciones, total_neto, conceptos } = liquidacionData;
+
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+
+                const stmtLiq = db.prepare(`
+                    INSERT INTO Liquidaciones (empleado_id, periodo, fecha_pago, banco_deposito, total_bruto, total_retenciones, total_neto) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                stmtLiq.run([empleado_id, periodo, fecha_pago, banco_deposito, total_bruto, total_retenciones, total_neto], function (err) {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        return reject(err);
+                    }
+
+                    const liquidacionId = this.lastID;
+                    const stmtConcepto = db.prepare(`
+                        INSERT INTO ConceptosLiquidacion (liquidacion_id, tipo, descripcion, unidad, importe) 
+                        VALUES (?, ?, ?, ?, ?)
+                    `);
+
+                    conceptos.forEach(c => {
+                        stmtConcepto.run([liquidacionId, c.tipo, c.descripcion, c.unidad || null, c.importe]);
+                    });
+
+                    stmtConcepto.finalize();
+                    stmtLiq.finalize();
+
+                    db.run('COMMIT', (err) => {
+                        if (err) reject(err);
+                        else resolve({ success: true, liquidacionId });
+                    });
+                });
+            });
+        });
+    });
+
+    ipcMain.handle('get-liquidaciones-empleado', async (event, empleado_id) => {
+        return new Promise((resolve, reject) => {
+            db.all('SELECT * FROM Liquidaciones WHERE empleado_id = ? ORDER BY id DESC', [empleado_id], async (err, liquidaciones) => {
+                if (err) return reject(err);
+
+                // Fetch conceptos for each
+                const results = [];
+                for (const liq of liquidaciones) {
+                    const conceptos = await new Promise((res, rej) => {
+                        db.all('SELECT * FROM ConceptosLiquidacion WHERE liquidacion_id = ?', [liq.id], (err2, rows) => {
+                            if (err2) rej(err2);
+                            else res(rows);
+                        });
+                    });
+                    results.push({ ...liq, conceptos });
+                }
+                resolve(results);
             });
         });
     });
