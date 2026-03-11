@@ -2,6 +2,10 @@ const { ipcMain, app } = require('electron');
 const db = require('./db.cjs');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { machineIdSync } = require('node-machine-id');
+
+const SECRET_SALT = 'CommerceOS_Pro_Secret_2026';
 
 function setupIpcHandlers() {
     // Ejemplos básicos de operaciones (se pueden expandir según necesidad)
@@ -663,6 +667,57 @@ function setupIpcHandlers() {
                 }
                 resolve(results);
             });
+        });
+    });
+
+    // --- LICENCIAS (ACTIVACION POR HARDWARE) ---
+    ipcMain.handle('check-license', async () => {
+        return new Promise((resolve) => {
+            const hwId = machineIdSync({ original: true });
+
+            db.get("SELECT valor FROM Configuracion WHERE clave = 'license_key'", [], (err, row) => {
+                if (err || !row) {
+                    resolve({ activated: false, machineId: hwId });
+                    return;
+                }
+
+                const savedKey = row.valor;
+
+                // Hash the current machine ID with our secret salt
+                const hash = crypto.createHmac('sha256', SECRET_SALT)
+                    .update(hwId)
+                    .digest('hex');
+
+                const expectedKey = hash.substring(0, 16).toUpperCase().match(/.{1,4}/g).join('-');
+
+                if (savedKey === expectedKey) {
+                    resolve({ activated: true, machineId: hwId });
+                } else {
+                    resolve({ activated: false, machineId: hwId });
+                }
+            });
+        });
+    });
+
+    ipcMain.handle('activate-license', async (event, enteredKey) => {
+        return new Promise((resolve, reject) => {
+            const hwId = machineIdSync({ original: true });
+
+            const hash = crypto.createHmac('sha256', SECRET_SALT)
+                .update(hwId)
+                .digest('hex');
+
+            const expectedKey = hash.substring(0, 16).toUpperCase().match(/.{1,4}/g).join('-');
+
+            if (enteredKey.trim() === expectedKey) {
+                // Save valid key to DB
+                db.run("INSERT OR REPLACE INTO Configuracion (clave, valor) VALUES ('license_key', ?)", [expectedKey], (err) => {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                });
+            } else {
+                resolve({ success: false, error: 'Clave de activación inválida para este equipo.' });
+            }
         });
     });
 }

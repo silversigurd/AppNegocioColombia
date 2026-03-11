@@ -200,22 +200,29 @@ function initDb() {
       impuesto_porcentaje REAL DEFAULT 0,
       categoria_id INTEGER,
       proveedor_id INTEGER,
-      FOREIGN KEY(categoria_id) REFERENCES Categorias(id),
-      FOREIGN KEY(proveedor_id) REFERENCES Proveedores(id)
+      FOREIGN KEY(categoria_id) REFERENCES Categorias(id) ON DELETE SET NULL,
+      FOREIGN KEY(proveedor_id) REFERENCES Proveedores(id) ON DELETE SET NULL
     )`);
 
-    // 7. InventarioPorSucursal (Relación Muchos a Muchos con Stock)
+    // 7. Inventario (Relación Producto-Sucursal)
     db.run(`CREATE TABLE IF NOT EXISTS Inventario (
-      producto_id INTEGER,
-      sucursal_id INTEGER,
-      cantidad INTEGER DEFAULT 0,
-      stock_minimo INTEGER DEFAULT 5,
-      PRIMARY KEY (producto_id, sucursal_id),
-      FOREIGN KEY(producto_id) REFERENCES Productos(id),
-      FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      producto_id INTEGER NOT NULL,
+      sucursal_id INTEGER NOT NULL,
+      cantidad INTEGER NOT NULL DEFAULT 0,
+      minimo_stock INTEGER DEFAULT 0,
+      FOREIGN KEY(producto_id) REFERENCES Productos(id) ON DELETE CASCADE,
+      FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id) ON DELETE CASCADE,
+      UNIQUE(producto_id, sucursal_id)
     )`);
 
-    // 8. Ventas (Comprobantes)
+    // 8. Configuracion (Para licencia y variables globales)
+    db.run(`CREATE TABLE IF NOT EXISTS Configuracion (
+      clave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    )`);
+
+    // 9. Ventas (Comprobantes)
     db.run(`CREATE TABLE IF NOT EXISTS Ventas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
