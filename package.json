@@ -30,13 +30,14 @@
       "icon": "build_icon.png"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "CommerceOS Pro",
       "uninstallDisplayName": "Desinstalar CommerceOS Pro",
+      "license": "license.txt",
       "installerLanguages": [
         "es_ES"
       ]

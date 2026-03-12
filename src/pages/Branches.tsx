@@ -54,6 +54,7 @@ export default function Branches() {
     const [indemnizacion, setIndemnizacion] = useState<any>(null);
     const [empleadosDesvinculados, setEmpleadosDesvinculados] = useState<Empleado[]>([]);
     const [showHistorial, setShowHistorial] = useState(false);
+    const [cuilError, setCuilError] = useState('');
 
     // Calcular indemnización según LCT
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
@@ -101,6 +102,19 @@ export default function Branches() {
         if (causal.includes('con justa causa')) {
             // Solo vacaciones y aguinald prop
             items.push({ concepto: 'Nota: Despido con justa causa (Art. 242)', monto: 0, detalle: 'No genera indemnización por antigüedad.' });
+        }
+
+        if (causal.includes('Fin de periodo de prueba')) {
+            // Ley Bases: Periodo de prueba ahora es de 6 meses gral.
+            // Para el despido en este periodo, corresponde preaviso de 15 días.
+            diasPreaviso = 15;
+            const preavisoPrueba = (MRMNH / 30) * diasPreaviso;
+            items.push({ concepto: 'Preaviso Periodo Prueba (Art. 92 bis)', monto: preavisoPrueba, detalle: `${diasPreaviso} días` });
+            total += preavisoPrueba;
+
+            const sacPreavisoPrueba = preavisoPrueba / 12;
+            items.push({ concepto: 'SAC s/ Preaviso Pr.', monto: sacPreavisoPrueba, detalle: '(1/12)' });
+            total += sacPreavisoPrueba;
         }
 
         if (causal.includes('Renuncia')) {
@@ -178,18 +192,76 @@ export default function Branches() {
         setIsFormOpen(true);
     };
 
-    const handleDniChange = (val: string) => {
-        const numbers = val.replace(/\D/g, '').slice(0, 8);
-        setFormData(prev => ({ ...prev, dni: numbers }));
+    const handleCuilChange = (val: string) => {
+        // The CUIL format is: XX-DNIDNI-X
+        // We auto-lock the middle 8 digits to the DNI already registered.
+        // The user only controls the 2-digit prefix and the 1-digit verification digit.
+        const dniDigits = (formData.dni || '').replace(/\D/g, '');
+
+        // Extract all typed digits
+        const typed = val.replace(/\D/g, '');
+
+        let prefix = '';
+        let suffix = '';
+
+        if (dniDigits.length > 0) {
+            // Build the canonical full number: prefix(2) + dni(up to 8) + suffix(1)
+            // User is typing so figure out what came before and after the DNI slot
+            const beforeDni = typed.slice(0, 2);
+            // Everything after the first 2 digits that isn't the DNI goes to suffix
+            const afterPrefix = typed.slice(2);
+            const dniInTyped = afterPrefix.slice(0, dniDigits.length);
+            const afterDni = afterPrefix.slice(dniDigits.length);
+
+            prefix = beforeDni.slice(0, 2);
+            suffix = afterDni.slice(0, 1);
+
+            // Build formatted CUIL with locked DNI
+            let formatted = prefix;
+            if (prefix.length === 2) {
+                formatted += '-' + dniDigits;
+                if (suffix.length === 1) {
+                    formatted += '-' + suffix;
+                }
+            }
+
+            // Validate: middle must match DNI
+            if (dniInTyped.length > 0 && dniInTyped !== dniDigits.slice(0, dniInTyped.length)) {
+                setCuilError(`El CUIL debe contener el mismo DNI (${dniDigits}) en el medio.`);
+            } else {
+                setCuilError('');
+            }
+
+            setFormData(prev => ({ ...prev, cuil: formatted }));
+        } else {
+            // No DNI yet — allow free typing with formatting
+            const numbers = typed.slice(0, 11);
+            let formatted = '';
+            if (numbers.length > 0) formatted += numbers.slice(0, 2);
+            if (numbers.length > 2) formatted += '-' + numbers.slice(2, 10);
+            if (numbers.length > 10) formatted += '-' + numbers.slice(10, 11);
+            setCuilError('Primero completá el campo DNI.');
+            setFormData(prev => ({ ...prev, cuil: formatted }));
+        }
     };
 
-    const handleCuilChange = (val: string) => {
-        let numbers = val.replace(/\D/g, '').slice(0, 11);
-        let formatted = '';
-        if (numbers.length > 0) formatted += numbers.slice(0, 2);
-        if (numbers.length > 2) formatted += '-' + numbers.slice(2, 10);
-        if (numbers.length > 10) formatted += '-' + numbers.slice(10, 11);
-        setFormData(prev => ({ ...prev, cuil: formatted }));
+    // When DNI changes, auto-update the CUIL middle segment if CUIL prefix/suffix already entered
+    const handleDniChange = (val: string) => {
+        const numbers = val.replace(/\D/g, '').slice(0, 8);
+        setFormData(prev => {
+            // Re-derive CUIL with new DNI
+            const existingCuil = (prev.cuil || '').replace(/\D/g, '');
+            const existingPrefix = existingCuil.slice(0, 2);
+            const existingSuffix = existingCuil.slice(10, 11);
+            let newCuil = existingPrefix;
+            if (existingPrefix.length === 2 && numbers.length > 0) {
+                newCuil += '-' + numbers;
+                if (existingSuffix) newCuil += '-' + existingSuffix;
+            }
+            const finalCuil = existingPrefix.length === 2 && numbers.length > 0 ? newCuil : prev.cuil;
+            setCuilError('');
+            return { ...prev, dni: numbers, cuil: finalCuil };
+        });
     };
 
     const handleAddCategoria = () => {
@@ -214,6 +286,17 @@ export default function Branches() {
 
     const handleSaveEmpleado = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validate CUIL contains the same DNI
+        const dniDigits = (formData.dni || '').replace(/\D/g, '');
+        const cuilDigits = (formData.cuil || '').replace(/\D/g, '');
+        const cuilMiddle = cuilDigits.slice(2, 10);
+        if (dniDigits && cuilMiddle && cuilMiddle !== dniDigits.padStart(8, '0').slice(0, cuilMiddle.length) && cuilMiddle !== dniDigits) {
+            setCuilError(`El CUIL ingresado no corresponde al DNI ${dniDigits}. El formato debe ser XX-${dniDigits}-X.`);
+            return;
+        }
+        setCuilError('');
+
         try {
             if (formData.id) {
                 await ipc.invoke('update-empleado', formData);
@@ -535,7 +618,19 @@ export default function Branches() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CUIL</label>
-                                    <input required type="text" maxLength={13} className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.cuil} onChange={e => handleCuilChange(e.target.value)} placeholder="00-00000000-0" />
+                                    <input
+                                        required
+                                        type="text"
+                                        maxLength={13}
+                                        className={`w-full px-4 py-2 bg-slate-50 border rounded-xl font-mono ${cuilError ? 'border-rose-400 focus:ring-rose-300' : 'border-slate-200'}`}
+                                        value={formData.cuil}
+                                        onChange={e => handleCuilChange(e.target.value)}
+                                        placeholder={formData.dni ? `XX-${formData.dni}-X` : '00-00000000-0'}
+                                    />
+                                    {cuilError
+                                        ? <p className="text-xs text-rose-500 mt-1 font-semibold">{cuilError}</p>
+                                        : <p className="text-xs text-slate-400 mt-1">Formato: XX-{formData.dni || 'DNI'}-X</p>
+                                    }
                                 </div>
 
                                 <div className="col-span-2">
@@ -770,7 +865,8 @@ export default function Branches() {
 
                         <div className="p-6 overflow-y-auto flex-1 space-y-5">
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 text-sm">
-                                ⚠️ Al confirmar, el empleado no se borrará de la Base de datos, sino que pasará al <strong>Historial de Bajas</strong> preservando todos sus recibos de sueldo.
+                                ⚠️ <strong>Historial Preservado:</strong> El empleado pasará al Historial de Bajas conservando datos y recibos. <br />
+                                ⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
                             </div>
 
                             <form id="desvincularForm" onSubmit={handleConfirmDesvinculacion} className="grid grid-cols-2 gap-4">
@@ -786,7 +882,7 @@ export default function Branches() {
                                         <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
                                         <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
                                         <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
-                                        <option value="Fin de periodo de prueba (Art. 92 bis LCT)">Fin de periodo de prueba (Art. 92 bis LCT)</option>
+                                        <option value="Fin de periodo de prueba (Art. 92 bis - Ahora 6 meses)">Fin de periodo de prueba (Art. 92 bis - Ahora 6 meses)</option>
                                     </select>
                                 </div>
                                 <div>
