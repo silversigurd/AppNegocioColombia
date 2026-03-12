@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs');
 
 const { app } = require('electron');
@@ -57,33 +58,43 @@ function initDb() {
       jornada_laboral TEXT,
       horas_parcial INTEGER DEFAULT 0,
       contrato_filepath TEXT,
+      modalidad_contratacion TEXT DEFAULT 'Formal',
+      estado TEXT DEFAULT 'Activo',
+      fecha_egreso TEXT,
+      causal_egreso TEXT,
       FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
-    )`, (err) => {
-      if (!err) {
-        // Upgrade existing table if columns are missing
-        const nuevasColumnasEmpleados = [
-          "ALTER TABLE Empleados ADD COLUMN dni TEXT",
-          "ALTER TABLE Empleados ADD COLUMN cuil TEXT",
-          "ALTER TABLE Empleados ADD COLUMN direccion TEXT",
-          "ALTER TABLE Empleados ADD COLUMN partido TEXT",
-          "ALTER TABLE Empleados ADD COLUMN localidad TEXT",
-          "ALTER TABLE Empleados ADD COLUMN obra_social TEXT",
-          "ALTER TABLE Empleados ADD COLUMN fecha_ingreso TEXT",
-          "ALTER TABLE Empleados ADD COLUMN categoria_cct TEXT",
-          "ALTER TABLE Empleados ADD COLUMN sueldo_basico REAL",
-          "ALTER TABLE Empleados ADD COLUMN jornada_laboral TEXT",
-          "ALTER TABLE Empleados ADD COLUMN horas_parcial INTEGER DEFAULT 0",
-          "ALTER TABLE Empleados ADD COLUMN contrato_filepath TEXT"
-        ];
-        nuevasColumnasEmpleados.forEach(cmd => {
-          db.run(cmd, (innerErr) => {
-            if (innerErr && !innerErr.message.includes('duplicate column name')) {
-              console.error(`Error al añadir columna a Empleados: ${cmd}`, innerErr.message);
-            }
-          });
-        });
-      }
+    )`);
+
+    // Ensure all optional columns exist (safe to run every startup; SQLite ignores duplicate column errors)
+    const empleadosMigrations = [
+      "ALTER TABLE Empleados ADD COLUMN dni TEXT",
+      "ALTER TABLE Empleados ADD COLUMN cuil TEXT",
+      "ALTER TABLE Empleados ADD COLUMN direccion TEXT",
+      "ALTER TABLE Empleados ADD COLUMN partido TEXT",
+      "ALTER TABLE Empleados ADD COLUMN localidad TEXT",
+      "ALTER TABLE Empleados ADD COLUMN obra_social TEXT",
+      "ALTER TABLE Empleados ADD COLUMN fecha_ingreso TEXT",
+      "ALTER TABLE Empleados ADD COLUMN categoria_cct TEXT",
+      "ALTER TABLE Empleados ADD COLUMN sueldo_basico REAL",
+      "ALTER TABLE Empleados ADD COLUMN jornada_laboral TEXT",
+      "ALTER TABLE Empleados ADD COLUMN horas_parcial INTEGER DEFAULT 0",
+      "ALTER TABLE Empleados ADD COLUMN contrato_filepath TEXT",
+      "ALTER TABLE Empleados ADD COLUMN modalidad_contratacion TEXT DEFAULT 'Formal'",
+      "ALTER TABLE Empleados ADD COLUMN estado TEXT DEFAULT 'Activo'",
+      "ALTER TABLE Empleados ADD COLUMN fecha_egreso TEXT",
+      "ALTER TABLE Empleados ADD COLUMN causal_egreso TEXT"
+    ];
+    empleadosMigrations.forEach(cmd => {
+      db.run(cmd, (innerErr) => {
+        if (innerErr && !innerErr.message.includes('duplicate column name')) {
+          console.error(`Error en migracion Empleados: ${cmd}`, innerErr.message);
+        }
+      });
     });
+
+    // Back-fill: set estado = 'Activo' for any existing rows that have NULL estado
+    db.run(`UPDATE Empleados SET estado = 'Activo' WHERE estado IS NULL`);
+    db.run(`UPDATE Empleados SET modalidad_contratacion = 'Formal' WHERE modalidad_contratacion IS NULL`);
 
     // 2.1 Liquidaciones (Recibos de Sueldo)
     db.run(`CREATE TABLE IF NOT EXISTS Liquidaciones (
@@ -222,6 +233,19 @@ function initDb() {
       valor TEXT NOT NULL
     )`);
 
+    // 8.5 Usuarios (Autenticación y Roles)
+    db.run(`CREATE TABLE IF NOT EXISTS Usuarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      rol TEXT CHECK(rol IN ('Admin', 'Empleado')) NOT NULL,
+      empleado_id INTEGER,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(empleado_id) REFERENCES Empleados(id) ON DELETE SET NULL
+    )`);
+    // Add empleado_id to existing Usuarios tables (for upgrades)
+    db.run(`ALTER TABLE Usuarios ADD COLUMN empleado_id INTEGER REFERENCES Empleados(id) ON DELETE SET NULL`, () => { });
+
     // 9. Ventas (Comprobantes)
     db.run(`CREATE TABLE IF NOT EXISTS Ventas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -340,6 +364,21 @@ function initDb() {
               });
             });
         });
+      }
+    });
+
+    // Seed default User Admin "Principal" if it doesn't exist
+    db.get('SELECT COUNT(*) as count FROM Usuarios', (err, row) => {
+      if (row && row.count === 0) {
+        // Default password is "admin". We hash it here.
+        const defaultHash = crypto.createHash('sha256').update('admin').digest('hex');
+        db.run(
+          `INSERT INTO Usuarios (username, password_hash, rol) VALUES (?, ?, ?)`,
+          ['Principal', defaultHash, 'Admin'],
+          function (err) {
+            if (err) console.error("Could not seed default admin user.", err);
+          }
+        );
       }
     });
   });

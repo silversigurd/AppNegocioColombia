@@ -85,6 +85,14 @@ input[type="number"] {
   /* Firefox */
 }
 
+/* Allow text selection/input in all form elements despite the global select-none on body */
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* --- Print Styling --- */
 @media print {
   body * {

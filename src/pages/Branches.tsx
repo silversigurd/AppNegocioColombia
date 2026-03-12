@@ -30,6 +30,10 @@ interface Empleado {
     jornada_laboral: string;
     horas_parcial?: number;
     contrato_filepath?: string;
+    modalidad_contratacion?: string;
+    estado?: string;
+    fecha_egreso?: string;
+    causal_egreso?: string;
 }
 
 export default function Branches() {
@@ -40,6 +44,80 @@ export default function Branches() {
     const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
     const [liquidaciones, setLiquidaciones] = useState<any[]>([]);
     const [payrollPreview, setPayrollPreview] = useState<any>(null);
+
+    // Desvinculación State
+    const [isDesvinculacionOpen, setIsDesvinculacionOpen] = useState(false);
+    const [desvinculacionData, setDesvinculacionData] = useState({
+        causal_egreso: 'Renuncia del trabajador (Art. 240 LCT)',
+        fecha_egreso: new Date().toISOString().slice(0, 10)
+    });
+    const [indemnizacion, setIndemnizacion] = useState<any>(null);
+    const [empleadosDesvinculados, setEmpleadosDesvinculados] = useState<Empleado[]>([]);
+    const [showHistorial, setShowHistorial] = useState(false);
+
+    // Calcular indemnización según LCT
+    const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
+        const ingreso = new Date(emp.fecha_ingreso);
+        const egreso = new Date(fechaEgreso);
+        const msYear = 1000 * 3600 * 24 * 365.25;
+        const aniosTotales = (egreso.getTime() - ingreso.getTime()) / msYear;
+        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales)); // mínimo 1 año; redondear hacia arriba fracción > 3 meses
+        const basico = Number(emp.sueldo_basico) || 0;
+        // Mejor remuneración mensual normal y habitual (simplificado)
+        const MRMNH = basico;
+
+        // Aguinaldos proporcionales al año actual
+        const inicioAnio = new Date(egreso.getFullYear(), 0, 1);
+        const mesesTranscurridos = (egreso.getTime() - inicioAnio.getTime()) / (msYear / 12);
+        const aguinaldoProporcional = (MRMNH / 12) * Math.min(mesesTranscurridos, 12);
+
+        // Vacaciones proporcionales de LCT
+        const diasVacacionesAnuales = aniosTotales < 5 ? 14 : aniosTotales < 10 ? 21 : aniosTotales < 20 ? 28 : 35;
+        const diasVacacionesProp = Math.floor((diasVacacionesAnuales / 12) * (mesesTranscurridos % 12));
+        const vacacionesProporcional = (MRMNH / 25) * diasVacacionesProp;
+
+        let items: { concepto: string, monto: number, detalle: string }[] = [];
+        let total = 0;
+
+        // Preaviso (Art. 231-232)
+        let diasPreaviso = 0;
+        if (causal.includes('sin justa causa')) {
+            diasPreaviso = aniosTotales < 0.25 ? 15 : aniosTotales < 5 ? 30 : 60;
+            const preaviso = (MRMNH / 30) * diasPreaviso;
+            items.push({ concepto: 'Preaviso (Art. 231 LCT)', monto: preaviso, detalle: `${diasPreaviso} días` });
+            total += preaviso;
+
+            // SAC sobre Preaviso
+            const sacPreaviso = preaviso / 12;
+            items.push({ concepto: 'SAC s/ Preaviso', monto: sacPreaviso, detalle: '(1/12 del preaviso)' });
+            total += sacPreaviso;
+
+            // Indemnización por antigüedad (Art. 245)
+            const antiguedad = MRMNH * aniosRedondeados;
+            items.push({ concepto: 'Indemnización por Antigüedad (Art. 245)', monto: antiguedad, detalle: `${aniosRedondeados} años x $${MRMNH.toLocaleString('es-AR')}` });
+            total += antiguedad;
+        }
+
+        if (causal.includes('con justa causa')) {
+            // Solo vacaciones y aguinald prop
+            items.push({ concepto: 'Nota: Despido con justa causa (Art. 242)', monto: 0, detalle: 'No genera indemnización por antigüedad.' });
+        }
+
+        if (causal.includes('Renuncia')) {
+            // Preaviso que debe el empleado al empleador (informativo)
+            const diasPreaviso2 = aniosTotales < 0.25 ? 15 : 30;
+            items.push({ concepto: 'Prórroga de preaviso a entregar al empleador', monto: 0, detalle: `${diasPreaviso2} días (s/ Art. 231)` });
+        }
+
+        // Vacaciones proporcionales y SAC siempre se pagan
+        items.push({ concepto: 'Vacaciones Proporcionales (LCT)', monto: vacacionesProporcional, detalle: `${diasVacacionesProp} días` });
+        total += vacacionesProporcional;
+
+        items.push({ concepto: 'SAC Proporcional por período', monto: aguinaldoProporcional, detalle: `${Math.min(mesesTranscurridos, 12).toFixed(1)} meses` });
+        total += aguinaldoProporcional;
+
+        return { items, total, anios: aniosTotales.toFixed(2), MRMNH };
+    };
 
     // CCT Categories Management
     const [categoriasCCT, setCategoriasCCT] = useState<string[]>(() => {
@@ -59,19 +137,31 @@ export default function Branches() {
     const [formData, setFormData] = useState<Empleado>({
         nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
         localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0
+        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Formal'
     });
 
     useEffect(() => {
         loadEmpleados();
+        loadDesvinculados();
     }, []);
 
     const loadEmpleados = async () => {
         try {
             const data = await ipc.invoke('get-empleados', null);
-            setEmpleados(data || []);
+            // Filter out Desvinculados at JS level too as a safety net
+            const activos = (data || []).filter((e: Empleado) => e.estado !== 'Desvinculado');
+            setEmpleados(activos);
         } catch (error) {
             console.error("Error loading employees", error);
+        }
+    };
+
+    const loadDesvinculados = async () => {
+        try {
+            const data = await ipc.invoke('get-empleados-desvinculados', null);
+            setEmpleadosDesvinculados(data || []);
+        } catch (error) {
+            console.error('Error loading desvinculados', error);
         }
     };
 
@@ -82,7 +172,7 @@ export default function Branches() {
             setFormData({
                 nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
                 localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0
+                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Formal'
             });
         }
         setIsFormOpen(true);
@@ -138,10 +228,51 @@ export default function Branches() {
         }
     };
 
-    const handleDeleteEmpleado = async (id: number) => {
-        if (confirm('¿Eliminar este empleado definitivamente?')) {
-            await ipc.invoke('delete-empleado', id);
+    const handleDeleteEmpleadoClick = (emp: Empleado) => {
+        if (!emp.id) return;
+        if (emp.modalidad_contratacion === 'Informal') {
+            if (confirm(`¿Eliminar definitivamente a ${emp.nombre}? (Al ser informal se borrará por completo).`)) {
+                ipc.invoke('delete-empleado', emp.id).then(() => loadEmpleados());
+            }
+        } else {
+            const defaultCausal = 'Renuncia del trabajador (Art. 240 LCT)';
+            const defaultFecha = new Date().toISOString().slice(0, 10);
+            setSelectedEmpleado(emp);
+            setDesvinculacionData({ causal_egreso: defaultCausal, fecha_egreso: defaultFecha });
+            // Calculate pre-emptively
+            const calc = calcularIndemnizacion(emp, defaultCausal, defaultFecha);
+            setIndemnizacion(calc);
+            setIsDesvinculacionOpen(true);
+        }
+    };
+
+    const handleDesvinculacionChange = (field: 'causal_egreso' | 'fecha_egreso', value: string) => {
+        const newData = { ...desvinculacionData, [field]: value };
+        setDesvinculacionData(newData);
+        if (selectedEmpleado) {
+            const calc = calcularIndemnizacion(selectedEmpleado, newData.causal_egreso, newData.fecha_egreso);
+            setIndemnizacion(calc);
+        }
+    };
+
+    const handleConfirmDesvinculacion = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedEmpleado || !selectedEmpleado.id) return;
+
+        try {
+            await ipc.invoke('desvincular-empleado', {
+                id: selectedEmpleado.id,
+                causal_egreso: desvinculacionData.causal_egreso,
+                fecha_egreso: desvinculacionData.fecha_egreso
+            });
+            setIsDesvinculacionOpen(false);
+            setSelectedEmpleado(null);
+            setIndemnizacion(null);
             loadEmpleados();
+            loadDesvinculados();
+        } catch (err) {
+            alert('Error al desvincular empleado.');
+            console.error(err);
         }
     };
 
@@ -331,7 +462,7 @@ export default function Branches() {
                     <div key={emp.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col relative group hover:shadow-md transition-shadow">
                         <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => handleOpenForm(emp)} className="p-1.5 text-slate-400 hover:text-primary-600 bg-slate-50 rounded-lg"><EditIcon fontSize="small" /></button>
-                            <button onClick={() => emp.id && handleDeleteEmpleado(emp.id)} className="p-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 rounded-lg"><DeleteIcon fontSize="small" /></button>
+                            <button onClick={() => handleDeleteEmpleadoClick(emp)} className="p-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 rounded-lg"><DeleteIcon fontSize="small" /></button>
                         </div>
 
                         <div className="flex items-center gap-4 mb-4">
@@ -340,7 +471,12 @@ export default function Branches() {
                             </div>
                             <div>
                                 <h3 className="font-bold text-lg leading-tight text-slate-800">{emp.nombre}</h3>
-                                <p className="text-sm font-medium text-slate-500">{emp.categoria_cct || emp.cargo || 'Sin Categoría'}</p>
+                                <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                                    {emp.categoria_cct || emp.cargo || 'Sin Categoría'}
+                                    {emp.modalidad_contratacion === 'Informal' && (
+                                        <span className="bg-rose-100 text-rose-700 text-[10px] uppercase font-black px-1.5 py-0.5 rounded-md">Informal</span>
+                                    )}
+                                </p>
                             </div>
                         </div>
 
@@ -380,9 +516,18 @@ export default function Branches() {
                         </div>
                         <div className="p-6 overflow-y-auto">
                             <form id="empForm" onSubmit={handleSaveEmpleado} className="grid grid-cols-2 gap-4">
-                                <div className="col-span-2">
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nombre Completo</label>
-                                    <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+                                <div className="col-span-2 flex gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nombre Completo</label>
+                                        <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+                                    </div>
+                                    <div className="w-1/3">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Modalidad</label>
+                                        <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold" value={formData.modalidad_contratacion || 'Formal'} onChange={e => setFormData({ ...formData, modalidad_contratacion: e.target.value })}>
+                                            <option value="Formal">Formal (Registrado)</option>
+                                            <option value="Informal">Informal (No Registrado)</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">DNI</label>
@@ -492,66 +637,75 @@ export default function Branches() {
 
                         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/30">
 
-                            {/* Contract Section */}
-                            <div className="bg-white border text-center border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div>
-                                    <h4 className="font-bold text-lg flex items-center gap-2 justify-center sm:justify-start">
-                                        <PictureAsPdfIcon className={selectedEmpleado.contrato_filepath ? 'text-rose-500' : 'text-slate-300'} />
-                                        Contrato Laboral
-                                    </h4>
-                                    <p className="text-sm text-slate-500 mt-1">
-                                        {selectedEmpleado.contrato_filepath ? 'Documento adjuntado.' : 'No se ha adjuntado un contrato firmado aún.'}
-                                    </p>
+                            {selectedEmpleado.modalidad_contratacion === 'Informal' ? (
+                                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center">
+                                    <CloseIcon sx={{ fontSize: 48 }} className="text-rose-300 mb-2" />
+                                    <h3 className="text-rose-800 font-bold text-lg">Modo Informal Activo</h3>
+                                    <p className="text-rose-600 text-sm mt-1 max-w-md">Para el personal no registrado (informal), el sistema bloquea automáticamente la generación de contratos laborales y recibos de sueldo oficiales (Art 80 LCT) para evitar contingencias legales o cálculos erróneos.</p>
                                 </div>
-                                <div className="flex gap-2 w-full sm:w-auto">
-                                    {selectedEmpleado.contrato_filepath && (
-                                        <button onClick={handleAbrirContrato} className="flex-1 sm:flex-none px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-sm font-bold shadow-sm">
-                                            Ver PDF
-                                        </button>
-                                    )}
-                                    <button onClick={handleUploadContrato} className="flex-1 sm:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm">
-                                        <CloudUploadIcon fontSize="small" /> Adjuntar
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Payroll Section */}
-                            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex-1 flex flex-col">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h4 className="font-bold text-lg flex items-center gap-2"><ReceiptIcon className="text-emerald-500" /> Liquidaciones de Sueldo</h4>
-                                    <button onClick={handleGenerarRecibo} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
-                                        <AddIcon fontSize="small" /> Liquidar Periodo
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 flex flex-col items-center">
-                                    {liquidaciones.length === 0 ? (
-                                        <div className="flex-1 w-full flex flex-col justify-center items-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl p-8 text-center bg-slate-50">
-                                            <ReceiptIcon sx={{ fontSize: 64, opacity: 0.2, marginBottom: '1rem' }} />
-                                            <p className="font-bold text-lg mb-1 hidden sm:block">Aún no hay recibos generados</p>
-                                            <p className="text-sm">Liquida el mes actual para generar el recibo en formato LCT.</p>
+                            ) : (
+                                <>
+                                    {/* Contract Section */}
+                                    <div className="bg-white border text-center border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                                        <div>
+                                            <h4 className="font-bold text-lg flex items-center gap-2 justify-center sm:justify-start">
+                                                <PictureAsPdfIcon className={selectedEmpleado.contrato_filepath ? 'text-rose-500' : 'text-slate-300'} />
+                                                Contrato Laboral
+                                            </h4>
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                {selectedEmpleado.contrato_filepath ? 'Documento adjuntado.' : 'No se ha adjuntado un contrato firmado aún.'}
+                                            </p>
                                         </div>
-                                    ) : (
-                                        <div className="w-full flex flex-col gap-3">
-                                            {liquidaciones.map(liq => (
-                                                <div key={liq.id} className="border border-slate-100 p-4 rounded-xl flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><ReceiptIcon fontSize="small" /></div>
-                                                        <div>
-                                                            <p className="font-bold text-slate-800">Periodo {liq.periodo}</p>
-                                                            <p className="text-xs text-slate-500">Neto: ${liq.total_neto.toLocaleString('es-AR')}</p>
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={() => generatePDF(liq, selectedEmpleado)} className="p-2 text-slate-400 hover:text-rose-600 bg-white rounded-lg shadow-sm border border-slate-200">
-                                                        <PictureAsPdfIcon fontSize="small" />
-                                                    </button>
+                                        <div className="flex gap-2 w-full sm:w-auto">
+                                            {selectedEmpleado.contrato_filepath && (
+                                                <button onClick={handleAbrirContrato} className="flex-1 sm:flex-none px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-sm font-bold shadow-sm">
+                                                    Ver PDF
+                                                </button>
+                                            )}
+                                            <button onClick={handleUploadContrato} className="flex-1 sm:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm">
+                                                <CloudUploadIcon fontSize="small" /> Adjuntar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Payroll Section */}
+                                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex-1 flex flex-col">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h4 className="font-bold text-lg flex items-center gap-2"><ReceiptIcon className="text-emerald-500" /> Liquidaciones de Sueldo</h4>
+                                            <button onClick={handleGenerarRecibo} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
+                                                <AddIcon fontSize="small" /> Liquidar Periodo
+                                            </button>
+                                        </div>
+
+                                        <div className="flex-1 flex flex-col items-center">
+                                            {liquidaciones.length === 0 ? (
+                                                <div className="flex-1 w-full flex flex-col justify-center items-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl p-8 text-center bg-slate-50">
+                                                    <ReceiptIcon sx={{ fontSize: 64, opacity: 0.2, marginBottom: '1rem' }} />
+                                                    <p className="font-bold text-lg mb-1 hidden sm:block">Aún no hay recibos generados</p>
+                                                    <p className="text-sm">Liquida el mes actual para generar el recibo en formato LCT.</p>
                                                 </div>
-                                            ))}
+                                            ) : (
+                                                <div className="w-full flex flex-col gap-3">
+                                                    {liquidaciones.map(liq => (
+                                                        <div key={liq.id} className="border border-slate-100 p-4 rounded-xl flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><ReceiptIcon fontSize="small" /></div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800">Periodo {liq.periodo}</p>
+                                                                    <p className="text-xs text-slate-500">Neto: ${liq.total_neto.toLocaleString('es-AR')}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => generatePDF(liq, selectedEmpleado)} className="p-2 text-slate-400 hover:text-rose-600 bg-white rounded-lg shadow-sm border border-slate-200">
+                                                                <PictureAsPdfIcon fontSize="small" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -601,6 +755,135 @@ export default function Branches() {
                     </div>
                 </div>
             )}
+
+            {/* Modal Baja / Desvinculación para Formales */}
+            {isDesvinculacionOpen && selectedEmpleado && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 flex flex-col max-h-[90vh]">
+                        <div className="p-5 border-b border-rose-100 bg-gradient-to-r from-rose-50 to-orange-50 flex justify-between items-center text-rose-900">
+                            <div>
+                                <h2 className="text-xl font-bold">Desvinculación Laboral</h2>
+                                <p className="text-sm text-rose-600 font-medium">{selectedEmpleado.nombre} | Ingreso: {selectedEmpleado.fecha_ingreso}</p>
+                            </div>
+                            <button onClick={() => setIsDesvinculacionOpen(false)} className="p-2 hover:bg-rose-100 rounded-full transition-colors text-rose-600"><CloseIcon /></button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto flex-1 space-y-5">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 text-sm">
+                                ⚠️ Al confirmar, el empleado no se borrará de la Base de datos, sino que pasará al <strong>Historial de Bajas</strong> preservando todos sus recibos de sueldo.
+                            </div>
+
+                            <form id="desvincularForm" onSubmit={handleConfirmDesvinculacion} className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Causal de Egreso Legal</label>
+                                    <select
+                                        required
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-rose-400"
+                                        value={desvinculacionData.causal_egreso}
+                                        onChange={e => handleDesvinculacionChange('causal_egreso', e.target.value)}
+                                    >
+                                        <option value="Renuncia del trabajador (Art. 240 LCT)">Renuncia del trabajador (Art. 240 LCT)</option>
+                                        <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
+                                        <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
+                                        <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
+                                        <option value="Fin de periodo de prueba (Art. 92 bis LCT)">Fin de periodo de prueba (Art. 92 bis LCT)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha de Baja Oficial</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-rose-400"
+                                        value={desvinculacionData.fecha_egreso}
+                                        onChange={e => handleDesvinculacionChange('fecha_egreso', e.target.value)}
+                                    />
+                                </div>
+                            </form>
+
+                            {/* Indemnization Breakdown */}
+                            {indemnizacion && (
+                                <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
+                                    <div className="bg-slate-100 px-4 py-2.5 flex items-center gap-2">
+                                        <ReceiptIcon className="text-rose-500" fontSize="small" />
+                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final Estimada (LCT) — {indemnizacion.anios} años de servicio</h4>
+                                    </div>
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-slate-200">
+                                                <th className="text-left px-4 py-2 text-xs text-slate-500 font-bold uppercase">Concepto</th>
+                                                <th className="text-left px-4 py-2 text-xs text-slate-500 font-bold uppercase">Detalle</th>
+                                                <th className="text-right px-4 py-2 text-xs text-slate-500 font-bold uppercase">Monto</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {indemnizacion.items.map((item: any, i: number) => (
+                                                <tr key={i} className="border-b border-slate-100 hover:bg-rose-50/30">
+                                                    <td className="px-4 py-2.5 font-medium text-slate-700">{item.concepto}</td>
+                                                    <td className="px-4 py-2.5 text-slate-400 text-xs">{item.detalle}</td>
+                                                    <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-AR')}` : '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {indemnizacion.total > 0 && (
+                                        <div className="px-4 py-3 bg-rose-600 flex justify-between items-center text-white">
+                                            <span className="font-bold">TOTAL ESTIMADO A PAGAR</span>
+                                            <span className="text-xl font-black">${Math.round(indemnizacion.total).toLocaleString('es-AR')}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-slate-400 px-4 py-2">* Cálculo orientativo basado en art. 231, 232, 241, 242, 245 LCT. No incluye retenciones o aportes patronales. Verificar con contador previo al pago.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-5 border-t border-slate-100 flex gap-3 bg-white shrink-0">
+                            <button onClick={() => setIsDesvinculacionOpen(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">Cancelar</button>
+                            <button form="desvincularForm" type="submit" className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                                <SaveIcon fontSize="small" /> Registrar Baja
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Historial de Desvinculados */}
+            {empleadosDesvinculados.length > 0 && (
+                <div className="mt-4">
+                    <button
+                        onClick={() => setShowHistorial(v => !v)}
+                        className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors mb-4"
+                    >
+                        <span className={`transition-transform ${showHistorial ? 'rotate-90' : ''}`}>▶</span>
+                        Historial de Bajas / Desvinculaciones ({empleadosDesvinculados.length})
+                    </button>
+                    {showHistorial && (
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Empleado</th>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Causal de Egreso</th>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Fecha Baja</th>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">CUIL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {empleadosDesvinculados.map(emp => (
+                                        <tr key={emp.id} className="border-b border-slate-50 hover:bg-rose-50/20">
+                                            <td className="px-4 py-3 font-semibold text-slate-700">{emp.nombre}</td>
+                                            <td className="px-4 py-3 text-slate-500">{emp.causal_egreso}</td>
+                                            <td className="px-4 py-3 text-slate-500">{emp.fecha_egreso}</td>
+                                            <td className="px-4 py-3 font-mono text-slate-400">{emp.cuil}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
+

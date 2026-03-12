@@ -507,13 +507,24 @@ function setupIpcHandlers() {
     // --- EMPLEADOS (RRHH) ---
     ipcMain.handle('get-empleados', async (event, sucursal_id) => {
         return new Promise((resolve, reject) => {
-            let query = 'SELECT * FROM Empleados';
+            // Only return Activo employees; Desvinculados are archived and shown in history
+            let query = `SELECT * FROM Empleados WHERE (estado = 'Activo' OR estado IS NULL)`;
             const params = [];
             if (sucursal_id) {
-                query += ' WHERE sucursal_id = ?';
+                query += ' AND sucursal_id = ?';
                 params.push(sucursal_id);
             }
             db.all(query, params, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
+
+    ipcMain.handle('get-empleados-desvinculados', async (event, sucursal_id) => {
+        return new Promise((resolve, reject) => {
+            let query = `SELECT * FROM Empleados WHERE estado = 'Desvinculado' ORDER BY fecha_egreso DESC`;
+            db.all(query, [], (err, rows) => {
                 if (err) reject(err);
                 else resolve(rows);
             });
@@ -524,7 +535,8 @@ function setupIpcHandlers() {
         const {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
-            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
+            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
+            modalidad_contratacion
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -532,13 +544,15 @@ function setupIpcHandlers() {
                 INSERT INTO Empleados (
                     nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
                     direccion, partido, localidad, obra_social, fecha_ingreso,
-                    categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
+                    modalidad_contratacion, estado
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
-                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
+                modalidad_contratacion || 'Formal'
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true, id: this.lastID });
@@ -550,7 +564,8 @@ function setupIpcHandlers() {
         const {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
-            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath
+            categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
+            modalidad_contratacion
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -558,13 +573,15 @@ function setupIpcHandlers() {
                 UPDATE Empleados SET 
                     nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
                     direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
-                    categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?
+                    categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?,
+                    modalidad_contratacion = ?
                 WHERE id = ?
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
-                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null, id
+                categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
+                modalidad_contratacion || 'Formal', id
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
@@ -575,6 +592,18 @@ function setupIpcHandlers() {
     ipcMain.handle('delete-empleado', async (event, id) => {
         return new Promise((resolve, reject) => {
             db.run('DELETE FROM Empleados WHERE id = ?', [id], function (err) {
+                if (err) reject(err);
+                else resolve({ success: true });
+            });
+        });
+    });
+
+    ipcMain.handle('desvincular-empleado', async (event, { id, causal_egreso, fecha_egreso }) => {
+        return new Promise((resolve, reject) => {
+            const query = `
+                UPDATE Empleados SET estado = 'Desvinculado', causal_egreso = ?, fecha_egreso = ? WHERE id = ?
+            `;
+            db.run(query, [causal_egreso, fecha_egreso, id], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
             });
@@ -670,7 +699,162 @@ function setupIpcHandlers() {
         });
     });
 
+    // --- USUARIOS Y AUTENTICACIÓN ---
+    ipcMain.handle('login', async (event, username, password) => {
+        return new Promise((resolve, reject) => {
+            const hash = crypto.createHash('sha256').update(password).digest('hex');
+            // JOIN with Empleados to get the seller's full name for receipts
+            const query = `
+                SELECT u.id, u.username, u.rol, u.empleado_id, e.nombre as empleado_nombre
+                FROM Usuarios u
+                LEFT JOIN Empleados e ON u.empleado_id = e.id
+                WHERE u.username = ? AND u.password_hash = ?
+            `;
+            db.get(query, [username, hash], (err, row) => {
+                if (err) reject(err);
+                if (row) {
+                    resolve({ success: true, user: row });
+                } else {
+                    resolve({ success: false, error: 'Usuario o contraseña incorrectos' });
+                }
+            });
+        });
+    });
+
+    ipcMain.handle('get-usuarios', async () => {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT u.id, u.username, u.rol, u.empleado_id, u.fecha_creacion, e.nombre as empleado_nombre
+                FROM Usuarios u
+                LEFT JOIN Empleados e ON u.empleado_id = e.id
+                ORDER BY u.id ASC
+            `;
+            db.all(query, [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
+
+    ipcMain.handle('save-usuario', async (event, userData) => {
+        return new Promise((resolve, reject) => {
+            const { username, password, rol, empleado_id } = userData;
+            const hash = crypto.createHash('sha256').update(password).digest('hex');
+            const empId = empleado_id || null;
+
+            db.run('INSERT INTO Usuarios (username, password_hash, rol, empleado_id) VALUES (?, ?, ?, ?)', [username, hash, rol, empId], function (err) {
+                if (err) {
+                    if (err.message.includes('UNIQUE constraint failed')) {
+                        resolve({ success: false, error: 'El nombre de usuario ya existe.' });
+                    } else {
+                        reject(err);
+                    }
+                } else {
+                    resolve({ success: true, id: this.lastID });
+                }
+            });
+        });
+    });
+
+    ipcMain.handle('update-usuario', async (event, userData) => {
+        return new Promise((resolve, reject) => {
+            const { id, username, password, rol, empleado_id } = userData;
+            const empId = empleado_id || null;
+
+            if (password && password.trim() !== '') {
+                // Update with new password
+                const hash = crypto.createHash('sha256').update(password).digest('hex');
+                db.run('UPDATE Usuarios SET username = ?, password_hash = ?, rol = ?, empleado_id = ? WHERE id = ?', [username, hash, rol, empId, id], function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                });
+            } else {
+                // Update without changing password
+                db.run('UPDATE Usuarios SET username = ?, rol = ?, empleado_id = ? WHERE id = ?', [username, rol, empId, id], function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                });
+            }
+        });
+    });
+
+    ipcMain.handle('delete-usuario', async (event, id) => {
+        return new Promise((resolve, reject) => {
+            // Protect "Principal" from deletion (assuming ID 1 or username)
+            db.get('SELECT username FROM Usuarios WHERE id = ?', [id], (err, row) => {
+                if (err) return reject(err);
+                if (row && row.username === 'Principal') {
+                    return resolve({ success: false, error: 'No se puede eliminar el usuario Principal.' });
+                }
+
+                db.run('DELETE FROM Usuarios WHERE id = ?', [id], function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                });
+            });
+        });
+    });
+
+    // --- AJUSTES DEL NEGOCIO ---
+    ipcMain.handle('get-settings', async () => {
+        return new Promise((resolve) => {
+            db.all("SELECT clave, valor FROM Configuracion WHERE clave NOT LIKE 'license%'", [], (err, rows) => {
+                const settings = {};
+                if (!err && rows) {
+                    rows.forEach(row => { settings[row.clave] = row.valor; });
+                }
+                resolve(settings);
+            });
+        });
+    });
+
+    ipcMain.handle('save-settings', async (event, settings) => {
+        return new Promise((resolve, reject) => {
+            const stmt = db.prepare("INSERT OR REPLACE INTO Configuracion (clave, valor) VALUES (?, ?)");
+            db.serialize(() => {
+                db.run("BEGIN TRANSACTION");
+                Object.entries(settings).forEach(([clave, valor]) => {
+                    stmt.run([clave, valor]);
+                });
+                stmt.finalize();
+                db.run("COMMIT", (err) => {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                });
+            });
+        });
+    });
+
+    ipcMain.handle('save-logo', async (event, sourcePath) => {
+        try {
+            const userDataPath = app.getPath('userData');
+            const logoDir = path.join(userDataPath, 'branding');
+            if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });
+
+            const ext = path.extname(sourcePath) || '.png';
+            const destPath = path.join(logoDir, `logo${ext}`);
+            fs.copyFileSync(sourcePath, destPath);
+
+            return { success: true, logoPath: destPath };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('get-logo-base64', async (event, logoPath) => {
+        try {
+            if (!logoPath || !fs.existsSync(logoPath)) return null;
+            const ext = path.extname(logoPath).substring(1) || 'png';
+            const base64Data = fs.readFileSync(logoPath, { encoding: 'base64' });
+            return `data:image/${ext};base64,${base64Data}`;
+        } catch (err) {
+            console.error('Error reading logo:', err);
+            return null;
+        }
+    });
+
     // --- LICENCIAS (ACTIVACION POR HARDWARE) ---
+
     ipcMain.handle('check-license', async () => {
         return new Promise((resolve) => {
             const hwId = machineIdSync({ original: true });

@@ -1,0 +1,41 @@
+========================================================================
+             INSTRUCCIONES DE MANTENIMIENTO Y ACTIVACIÓN
+                      COMMERCEOS PRO (2026)
+========================================================================
+
+1. DESARROLLO Y PRUEBAS (En tiempo real)
+-----------------------------------------
+Si quieres probar cambios antes de compilar:
+> npm run dev
+
+
+2. COMPILACIÓN / GENERACIÓN DEL INSTALADOR (.EXE)
+--------------------------------------------------
+Para generar la carpeta "dist-electron" con el ejecutable listo 
+para usar o distribuir:
+> npm run electron:build
+
+
+3. ACTIVACIÓN DE LICENCIAS (Para Clientes)
+-------------------------------------------
+Cuando un cliente instala el programa, este le mostrará un "Hardware ID"
+único de su PC. Para darle su llave de activación, debes correr:
+
+> node scripts/generate-key.cjs <HardwareID-Que-Te-Mande-El-Cliente>
+
+Ejemplo:
+> node scripts/generate-key.cjs 4c24b242-0000-1111-2222-333344445555
+
+El comando te devolverá una clave como "ABCD-1234-EFGH-5678" que es la 
+que el cliente debe pegar en la app para activarla.
+
+
+4. UBICACIÓN DE DATOS (IMPORTANTE)
+-----------------------------------
+La base de datos (ventas, empleados, etc) y los contratos digitales
+se guardan en la carpeta de datos de aplicación de Windows:
+%APPDATA%/CommerceOS Pro/
+
+- Base de datos: commerce_data.sqlite
+- Contratos: contratos_rrhh/
+========================================================================

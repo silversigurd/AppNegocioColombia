@@ -8,11 +8,13 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import PrintIcon from '@mui/icons-material/Print';
 import Ticket from '../components/Ticket';
 import { ipc } from '../utils/ipc';
+import { useAuth } from '../context/AuthContext';
 
 type Product = { id: number, codigo: string, nombre: string, precio_venta: number, stock: number };
 type CartItem = Product & { quantity: number };
 
 export default function POS() {
+    const { user } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -131,7 +133,8 @@ export default function POS() {
                 items: [...cart],
                 total,
                 subtotal,
-                impuestos: tax
+                impuestos: tax,
+                vendedor: user?.empleado_nombre || user?.username || 'Sistema'
             });
             setShowPrintOptions(true);
 
@@ -303,8 +306,15 @@ export default function POS() {
                         <div className="flex flex-col gap-3">
                             <button
                                 onClick={() => {
-                                    window.print();
-                                    setShowPrintOptions(false);
+                                    // Delay the state update so Electron print spooler catches the DOM
+                                    setTimeout(() => {
+                                        window.print();
+                                    }, 100);
+
+                                    // Close modal after giving some time to the print dialog
+                                    setTimeout(() => {
+                                        setShowPrintOptions(false);
+                                    }, 1500);
                                 }}
                                 className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-500/30 transition-all active:scale-95"
                             >
@@ -330,6 +340,7 @@ export default function POS() {
                     total={lastSale.total}
                     subtotal={lastSale.subtotal}
                     impuestos={lastSale.impuestos}
+                    vendedor={lastSale.vendedor}
                 />
             )}
         </>

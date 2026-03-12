@@ -8,10 +8,32 @@ import Clients from './pages/Clients';
 import Finance from './pages/Finance';
 import Providers from './pages/Providers';
 import Branches from './pages/Branches';
+import Login from './pages/Login';
+import Users from './pages/Users';
+import Settings from './pages/Settings';
 import LockIcon from '@mui/icons-material/Lock';
 import { ipc } from './utils/ipc';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { SettingsProvider } from './context/SettingsContext';
+import { Navigate, useLocation } from 'react-router-dom';
 
-function App() {
+const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
+  const { isAuthenticated, user } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.rol)) {
+    // Redirect to dashboard if unauthorized
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+function AppContent() {
   const [isActivated, setIsActivated] = useState<boolean | null>(null);
   const [machineId, setMachineId] = useState<string>('');
   const [activationKey, setActivationKey] = useState('');
@@ -113,17 +135,30 @@ function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POS />} />
           <Route path="inventario" element={<Inventory />} />
           <Route path="clientes" element={<Clients />} />
-          <Route path="proveedores" element={<Providers />} />
-          <Route path="caja" element={<Finance />} />
-          <Route path="sucursales" element={<Branches />} />
+          <Route path="proveedores" element={<ProtectedRoute allowedRoles={['Admin']}><Providers /></ProtectedRoute>} />
+          <Route path="caja" element={<ProtectedRoute allowedRoles={['Admin']}><Finance /></ProtectedRoute>} />
+          <Route path="sucursales" element={<ProtectedRoute allowedRoles={['Admin']}><Branches /></ProtectedRoute>} />
+          <Route path="usuarios" element={<ProtectedRoute allowedRoles={['Admin']}><Users /></ProtectedRoute>} />
+          <Route path="ajustes" element={<ProtectedRoute allowedRoles={['Admin']}><Settings /></ProtectedRoute>} />
         </Route>
       </Routes>
     </HashRouter>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <SettingsProvider>
+        <AppContent />
+      </SettingsProvider>
+    </AuthProvider>
   );
 }
 

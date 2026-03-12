@@ -1,5 +1,4 @@
-import React from 'react';
-import config from '../config.json';
+import { useSettings } from '../context/SettingsContext';
 import { getProfileWidth, centerText, divider, formatItemLine, formatTotalLine } from '../utils/ticketFormatter';
 
 interface TicketProps {
@@ -10,32 +9,38 @@ interface TicketProps {
     total?: number;
     subtotal?: number;
     impuestos?: number;
+    vendedor?: string;
     ventaData?: any; // Full venta object containing the above fields
     onClose?: () => void;
 }
 
-export default function Ticket({ id, fecha, items, total, subtotal, impuestos, ventaData }: TicketProps) {
+export default function Ticket({ id, fecha, items, total, subtotal, impuestos, vendedor, ventaData }: TicketProps) {
+    // Read live settings from DB instead of static config.json
+    const { settings } = useSettings();
+
     const ticketId = ventaData?.id ?? id;
     const ticketFecha = ventaData?.fecha ?? fecha;
     const ticketItems = (ventaData?.items ?? items) || [];
     const ticketTotal = ventaData?.total ?? total ?? 0;
     const ticketSubtotal = ventaData?.subtotal ?? subtotal ?? 0;
     const ticketImpuestos = ventaData?.impuestos ?? impuestos ?? 0;
+    const ticketVendedor = ventaData?.vendedor ?? vendedor;
 
-    const width = getProfileWidth(config.printerProfile || '80mm');
+    const width = getProfileWidth(settings.printerProfile || '80mm');
     const border = divider(width, '-');
 
     let ticketText = '';
 
-    // Header
-    ticketText += centerText(config.businessName || '', width) + '\n';
-    if (config.businessCuit) ticketText += centerText(`CUIT: ${config.businessCuit}`, width) + '\n';
-    if (config.businessAddress) ticketText += centerText(config.businessAddress, width) + '\n';
-    ticketText += centerText(config.tagline || '', width) + '\n';
+    // Header — uses DB settings, not the static config.json
+    ticketText += centerText(settings.businessName || '', width) + '\n';
+    if (settings.businessCuit) ticketText += centerText(`CUIT: ${settings.businessCuit}`, width) + '\n';
+    if (settings.businessAddress) ticketText += centerText(settings.businessAddress, width) + '\n';
+    ticketText += centerText(settings.tagline || '', width) + '\n';
 
     ticketText += border + '\n';
     ticketText += centerText(`TICKET DE VENTA #${ticketId}`, width) + '\n';
     if (ticketFecha) ticketText += centerText(new Date(ticketFecha).toLocaleString('es-AR'), width) + '\n';
+    if (ticketVendedor) ticketText += centerText(`Atendido por: ${ticketVendedor}`, width) + '\n';
     ticketText += border + '\n';
 
     // Items
@@ -67,4 +72,3 @@ export default function Ticket({ id, fecha, items, total, subtotal, impuestos, v
         </div>
     );
 }
-

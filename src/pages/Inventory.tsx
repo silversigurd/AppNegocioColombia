@@ -15,6 +15,7 @@ import autoTable from 'jspdf-autotable';
 import { utils, writeFile } from 'xlsx';
 
 import { ipc } from '../utils/ipc';
+import { useAuth } from '../context/AuthContext';
 
 interface Product {
     id?: number;
@@ -34,6 +35,7 @@ interface Category {
 }
 
 export default function Inventory() {
+    const { user } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -230,13 +232,15 @@ export default function Inventory() {
                     <h1 className="text-2xl font-bold">Gestión de Inventario</h1>
                     <p className="text-sm text-slate-500 mt-1">Administra los productos y controla el stock de la sucursal.</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary-500/30 active:scale-95"
-                >
-                    <AddIcon fontSize="small" />
-                    <span>Nuevo Producto</span>
-                </button>
+                {user?.rol === 'Admin' && (
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary-500/30 active:scale-95"
+                    >
+                        <AddIcon fontSize="small" />
+                        <span>Nuevo Producto</span>
+                    </button>
+                )}
             </div>
 
             {/* Toolbar / Filters */}
@@ -345,20 +349,22 @@ export default function Inventory() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => handleOpenModal(product)}
-                                                className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-primary-600 hover:text-white hover:border-primary-600 transition-all shadow-sm active:scale-90"
-                                            >
-                                                <EditIcon fontSize="small" />
-                                            </button>
-                                            <button
-                                                onClick={() => product.id && handleDelete(product.id)}
-                                                className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-rose-500 flex items-center justify-center hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all shadow-sm active:scale-90"
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </button>
-                                        </div>
+                                        {user?.rol === 'Admin' && (
+                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => handleOpenModal(product)}
+                                                    className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-primary-600 hover:text-white hover:border-primary-600 transition-all shadow-sm active:scale-90"
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </button>
+                                                <button
+                                                    onClick={() => product.id && handleDelete(product.id)}
+                                                    className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-rose-500 flex items-center justify-center hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all shadow-sm active:scale-90"
+                                                >
+                                                    <DeleteIcon fontSize="small" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

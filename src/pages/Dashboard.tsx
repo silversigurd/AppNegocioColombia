@@ -9,6 +9,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import PrintIcon from '@mui/icons-material/Print';
 import Ticket from '../components/Ticket';
 import PedidoTicket from '../components/PedidoTicket';
+import { useAuth } from '../context/AuthContext';
+
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -56,6 +58,8 @@ export default function Dashboard() {
     });
     const [movimientos, setMovimientos] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
+
 
     // Ticket View State
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -152,11 +156,15 @@ export default function Dashboard() {
             {/* Top Banner */}
             <div className="w-full bg-gradient-to-r from-primary-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl shadow-primary-500/20 relative overflow-hidden">
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-bold mb-2">¡Hola, Administrador! 👋</h1>
-                    <p className="text-primary-100 max-w-lg text-sm leading-relaxed">
-                        Aquí tienes el resumen de la actividad de tu comercio en el día de hoy.
-                        Revisa los indicadores clave y mantén el inventario al día.
-                    </p>
+                    <h1 className="text-3xl font-bold mb-2">
+                        ¡Hola, {user?.rol === 'Empleado' ? (user.empleado_nombre || user.username) : 'Administrador'}! 👋
+                    </h1>
+                    {user?.rol === 'Admin' && (
+                        <p className="text-primary-100 max-w-lg text-sm leading-relaxed">
+                            Aquí tienes el resumen de la actividad de tu comercio en el día de hoy.
+                            Revisa los indicadores clave y mantén el inventario al día.
+                        </p>
+                    )}
                 </div>
                 <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                 <div className="absolute right-20 -bottom-20 w-40 h-40 bg-indigo-400/20 rounded-full blur-2xl"></div>
