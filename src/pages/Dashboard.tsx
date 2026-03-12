@@ -188,14 +188,14 @@ export default function Dashboard() {
                     icon={<Inventory2Icon className="text-rose-500" />}
                     colorClass="bg-rose-50 text-rose-600"
                 />
-                <KpiCard
+                {/* <KpiCard
                     title="Clientes Frecuentes"
                     value={stats.clientesActivos}
                     trend="Estable"
                     positive={true}
                     icon={<GroupIcon className="text-purple-500" />}
                     colorClass="bg-purple-50 text-purple-600"
-                />
+                /> */}
             </div>
 
             {/* Main Content Area */}

@@ -14,7 +14,7 @@ const navItems = [
     { path: '/', label: 'Panel de Control', icon: <DashboardIcon /> },
     { path: '/pos', label: 'Punto de Venta', icon: <PointOfSaleIcon /> },
     { path: '/inventario', label: 'Inventario', icon: <InventoryIcon /> },
-    { path: '/clientes', label: 'Clientes', icon: <PeopleIcon /> },
+    // { path: '/clientes', label: 'Clientes', icon: <PeopleIcon /> },
     { path: '/proveedores', label: 'Proveedores', icon: <LocalShippingIcon /> },
     { path: '/caja', label: 'Caja y Finanzas', icon: <AccountBalanceWalletIcon /> },
     { path: '/sucursales', label: 'RRHH', icon: <StoreIcon /> },
