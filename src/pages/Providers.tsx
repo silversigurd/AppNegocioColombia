@@ -569,7 +569,7 @@ export default function Providers() {
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Stock: Saldo de Envases</label>
                                                     <input type="number" min="0" className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm font-bold text-amber-900"
-                                                        value={formData.saldo_envases} onChange={e => setFormData({ ...formData, saldo_envases: parseInt(e.target.value) || 0 })} />
+                                                        value={formData.saldo_envases} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, saldo_envases: parseInt(e.target.value) || 0 })} />
                                                 </div>
                                             </div>
                                         </div>
@@ -595,7 +595,7 @@ export default function Providers() {
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Plazo de Pago</label>
                                                         <div className="relative">
                                                             <input type="number" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 outline-none focus:border-amber-500 text-sm"
-                                                                value={formData.plazo_pago} onChange={e => setFormData({ ...formData, plazo_pago: parseInt(e.target.value) || 0 })} />
+                                                                value={formData.plazo_pago} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, plazo_pago: parseInt(e.target.value) || 0 })} />
                                                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">días</span>
                                                         </div>
                                                     </div>
@@ -606,7 +606,7 @@ export default function Providers() {
                                                         <div className="relative">
                                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-bold">$</span>
                                                             <input type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-7 pr-4 py-2.5 outline-none focus:border-amber-500 text-sm"
-                                                                value={formData.minimo_compra} onChange={e => setFormData({ ...formData, minimo_compra: parseFloat(e.target.value) || 0 })} />
+                                                                value={formData.minimo_compra} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, minimo_compra: parseFloat(e.target.value) || 0 })} />
                                                         </div>
                                                     </div>
                                                     <div className="flex-1">
@@ -614,7 +614,7 @@ export default function Providers() {
                                                         <div className="relative">
                                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-bold">$</span>
                                                             <input type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-7 pr-4 py-2.5 outline-none focus:border-amber-500 text-sm"
-                                                                value={formData.limite_credito} onChange={e => setFormData({ ...formData, limite_credito: parseFloat(e.target.value) || 0 })} />
+                                                                value={formData.limite_credito} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, limite_credito: parseFloat(e.target.value) || 0 })} />
                                                         </div>
                                                     </div>
                                                     <div className="w-24">
@@ -634,7 +634,7 @@ export default function Providers() {
                                                     <div className="flex-1">
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Saldo Cta. Cte. Actual</label>
                                                         <input type="number" step="0.01" className={`w-full border rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm font-bold ${formData.saldo_actual > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200'}`}
-                                                            value={formData.saldo_actual} onChange={e => setFormData({ ...formData, saldo_actual: parseFloat(e.target.value) || 0 })} />
+                                                            value={formData.saldo_actual} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, saldo_actual: parseFloat(e.target.value) || 0 })} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -651,7 +651,7 @@ export default function Providers() {
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Retención Ganancias</label>
                                                         <div className="relative">
                                                             <input type="number" step="0.1" max="100" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 outline-none focus:border-rose-500 text-sm"
-                                                                value={formData.retencion_ganancias} onChange={e => setFormData({ ...formData, retencion_ganancias: parseFloat(e.target.value) || 0 })} />
+                                                                value={formData.retencion_ganancias} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, retencion_ganancias: parseFloat(e.target.value) || 0 })} />
                                                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">%</span>
                                                         </div>
                                                     </div>
@@ -659,7 +659,7 @@ export default function Providers() {
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Retención IIBB</label>
                                                         <div className="relative">
                                                             <input type="number" step="0.01" max="100" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 outline-none focus:border-rose-500 text-sm"
-                                                                value={formData.retencion_iibb} onChange={e => setFormData({ ...formData, retencion_iibb: parseFloat(e.target.value) || 0 })} />
+                                                                value={formData.retencion_iibb} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, retencion_iibb: parseFloat(e.target.value) || 0 })} />
                                                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">%</span>
                                                         </div>
                                                     </div>
@@ -804,13 +804,13 @@ export default function Providers() {
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <input type="number" min="1" className="w-full border rounded-lg px-2 py-1 text-center"
-                                                            value={item.cantidad || ''} onChange={e => handleUpdateItem(index, 'cantidad', parseInt(e.target.value) || 0)} />
+                                                            value={item.cantidad || ''} onFocus={(e) => e.target.select()} onChange={e => handleUpdateItem(index, 'cantidad', parseInt(e.target.value) || 0)} />
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="relative">
                                                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                                                             <input type="number" step="0.01" min="0" className="w-full border rounded-lg pl-6 pr-2 py-1 text-center"
-                                                                value={item.precio_compra || ''} onChange={e => handleUpdateItem(index, 'precio_compra', parseFloat(e.target.value) || 0)} />
+                                                                value={item.precio_compra || ''} onFocus={(e) => e.target.select()} onChange={e => handleUpdateItem(index, 'precio_compra', parseFloat(e.target.value) || 0)} />
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-3 text-right font-bold text-slate-700">

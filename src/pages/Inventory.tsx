@@ -443,6 +443,7 @@ export default function Inventory() {
                                         step="0.01"
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                         value={formData.precio_compra}
+                                        onFocus={(e) => e.target.select()}
                                         onChange={(e) => setFormData({ ...formData, precio_compra: Number(e.target.value) })}
                                     />
                                 </div>
@@ -454,6 +455,7 @@ export default function Inventory() {
                                         step="0.01"
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                         value={formData.precio_venta}
+                                        onFocus={(e) => e.target.select()}
                                         onChange={(e) => setFormData({ ...formData, precio_venta: Number(e.target.value) })}
                                     />
                                 </div>
@@ -464,6 +466,7 @@ export default function Inventory() {
                                         type="number"
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                         value={formData.stock}
+                                        onFocus={(e) => e.target.select()}
                                         onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
                                     />
                                 </div>

@@ -1,12 +1,11 @@
 ACUERDO DE LICENCIA DE USUARIO FINAL (EULA) PARA COMMERCEOS PRO
-
 IMPORTANTE: LEA DETENIDAMENTE ANTES DE INSTALAR EL SOFTWARE.
 
-Al instalar, copiar o utilizar de cualquier otro modo el software CommerceOS Pro (en adelante, el "Software"), usted (el "Licenciatario") acepta estar sujeto a los términos de este Acuerdo de Licencia de Usuario Final ("EULA" o "Acuerdo") establecido por el Desarrollador. Si no está de acuerdo con los términos de este EULA, no instale ni utilice el Software.
+Al instalar, copiar o utilizar de cualquier otro modo el software CommerceOS Pro (en adelante, el "Software"), usted (en adelante, el "Licenciatario") acepta estar sujeto a los términos de este Acuerdo de Licencia de Usuario Final ("EULA" o "Acuerdo") establecido por el Desarrollador. Si no está de acuerdo con los términos de este EULA, no instale ni utilice el Software.
 
 1. CONCESIÓN DE LICENCIA
 1.1. Licencia de Uso: Se le concede una licencia no exclusiva, intransferible y revocable para utilizar el Software en su establecimiento comercial de acuerdo con los términos de este Acuerdo.
-1.2. Activación: El Software requiere una clave de activación (Hardware ID) asociada a un dispositivo específico para funcionar plenamente. La transferencia de la licencia a un dispositivo diferente requerirá la autorización del Desarrollador.
+1.2. Activación: El Software requiere una clave de activación (Hardware ID) asociada a un dispositivo específico para funcionar plenamente. La transferencia de la licencia a un dispositivo diferente requerirá la autorización expresa del Desarrollador.
 
 2. RESTRICCIONES
 2.1. El Licenciatario se compromete a no:
@@ -15,22 +14,31 @@ b) Alquilar, arrendar, prestar, revender, sublicenciar o distribuir el Software 
 c) Utilizar el Software para cualquier fin ilegal o no autorizado por este Acuerdo.
 
 3. PROPIEDAD INTELECTUAL
-3.1. Todos los derechos de propiedad intelectual y los derechos de autor relacionados con el Software y sus componentes son propiedad exclusiva del Desarrollador. El presente Acuerdo no concede ningún derecho de propiedad, patente o marca sobre el Software.
+3.1. Todos los derechos de propiedad intelectual y los derechos de autor relacionados con el Software y sus componentes son propiedad exclusiva del Desarrollador. El presente Acuerdo no concede ningún derecho de propiedad, patente o marca sobre el Software, sino únicamente un derecho de uso bajo las condiciones aquí pactadas.
 
-4. PRIVACIDAD Y DATOS
-4.1. Base de Datos Local: El Software opera con una base de datos local cifrada en el dispositivo del Licenciatario. El Desarrollador no tiene acceso remoto, no recopila ni almacena información financiera, de empleados o de clientes ingresada en el Software por el Licenciatario.
-4.2. Responsabilidad de la Información: Usted es el único responsable de mantener copias de seguridad de sus datos y de la confidencialidad de la información gestionada a través del Software.
+4. PRIVACIDAD Y PROTECCIÓN DE DATOS
+4.1. Base de Datos Local: El Software opera con una base de datos local cifrada en el dispositivo del Licenciatario. El Desarrollador no tiene acceso remoto, no recopila ni almacena información financiera, de empleados o de clientes ingresada en el Software.
+4.2. Ley de Protección de Datos Personales: El Licenciatario, en su carácter de responsable del tratamiento de los datos, garantiza que el uso del Software y la carga de información de terceros se realiza en estricto cumplimiento de la Ley No. 25.326 de Protección de Datos Personales de la República Argentina.
+4.3. Responsabilidad de la Información: El Licenciatario es el único responsable de mantener copias de seguridad (backups) de sus datos y de velar por la confidencialidad de la información gestionada.
 
-5. MARCO LEGAL Y CUMPLIMIENTO (ARGENTINA)
-5.1. El Software incluye herramientas de cálculo y gestión documental (ej. RRHH, Recibos) basadas en la normativa vigente (Ley de Contrato de Trabajo, Ley Bases 2024, CCT 130/75, entre otras). 
-5.2. Orientación Legal: Los cálculos de liquidaciones e impuestos provistos por el Software son estimados y orientativos. El Desarrollador no asumirá responsabilidad legal, contable ni fiscal frente a posibles litigios. Es obligación del Licenciatario validar la información con su propio contador público o asesor legal.
+5. MARCO LEGAL Y SERVICIO DE ACTUALIZACIÓN NORMATIVA
+5.1. Base Legal: El Software incluye herramientas de cálculo basadas en la normativa vigente en Argentina (Ley de Contrato de Trabajo, Ley Bases 2024, CCT 130/75, entre otras).
+5.2. Servicio de Actualización (Comisión Mensual): El Licenciatario podrá optar por contratar un servicio de actualización técnica y legal. En caso de requerirlo, se cobrará una comisión mensual fija que garantizará que el Software se mantenga actualizado respecto a cambios en las leyes laborales, alícuotas impositivas y escalas salariales de los convenios aplicables. El incumplimiento en el pago de esta comisión facultará al Desarrollador a suspender el acceso a dichas actualizaciones.
+5.3. Orientación Legal: Los cálculos provistos son estimados y orientativos. El Desarrollador no asume responsabilidad legal, contable ni fiscal frente a posibles litigios. Es obligación del Licenciatario validar la información con su propio contador público o asesor legal.
 
 6. LIMITACIÓN DE RESPONSABILIDAD
-6.1. El Software se proporciona "tal cual" (AS IS), sin garantías de ningún tipo, ya sean expresas o implícitas.
-6.2. En ningún caso el Desarrollador será responsable por daños directos, indirectos, incidentales, especiales o consecuentes (incluyendo, entre otros, la pérdida de datos, interrupción del negocio o lucro cesante) que surjan del uso o la imposibilidad de usar el Software, incluso si el Desarrollador ha sido advertido de la posibilidad de tales daños.
+6.1. El Software se proporciona "tal cual" (AS IS), sin garantías de ningún tipo.
+6.2. En ningún caso el Desarrollador será responsable por daños directos, indirectos, incidentales o consecuentes (incluyendo pérdida de datos, multas administrativas, lucro cesante o interrupción del negocio) que surjan del uso o la imposibilidad de usar el Software.
 
-7. TERMINACIÓN
-7.1. Este EULA es efectivo hasta que sea terminado por usted o por el Desarrollador. Sus derechos bajo esta licencia terminarán automáticamente y sin previo aviso si usted incumple cualquiera de los términos de este Acuerdo.
-7.2. Tras la terminación, deberá cesar inmediatamente el uso del Software y destruir todas las copias del mismo.
+7. INDEMNIDAD
+7.1. El Licenciatario se compromete a mantener indemne al Desarrollador frente a cualquier reclamo, demanda, multa o sanción (incluyendo honorarios legales) derivados de un uso negligente del Software, incumplimiento de las leyes laborales locales o carga de información inexacta por parte del Licenciatario.
+
+8. TERMINACIÓN
+8.1. Este EULA es efectivo hasta su terminación. Sus derechos bajo esta licencia terminarán automáticamente y sin previo aviso si usted incumple cualquiera de los términos.
+8.2. Tras la terminación, deberá cesar inmediatamente el uso del Software y destruir todas las copias del mismo.
+
+9. JURISDICCIÓN Y LEY APLICABLE
+9.1. Este Acuerdo se rige por las leyes de la República Argentina.
+9.2. Para cualquier controversia derivada del presente, las partes se someten a la jurisdicción de los Tribunales Ordinarios de la ciudad de La Plata, Provincia de Buenos Aires, renunciando a cualquier otro fuero o jurisdicción que pudiera corresponderles.
 
 Al hacer clic en "Acepto", usted reconoce haber leído este EULA, comprenderlo y aceptar estar legalmente vinculado a sus términos y condiciones.

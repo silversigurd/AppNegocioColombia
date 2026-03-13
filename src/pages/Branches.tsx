@@ -69,12 +69,12 @@ export default function Branches() {
         const msYear = msDay * 365.25;
         const totalDays = (egreso.getTime() - ingreso.getTime()) / msDay;
         const aniosTotales = totalDays / 365.25;
-        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales)); 
+        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales));
         const basico = Number(emp.sueldo_basico) || 0;
-        
+
         // MRMNH sin SAC según Ley Bases 2024
         let MRMNH = basico;
-        
+
         // Aplicar Tope CCT (Tope Vizzoti) si existe
         if (settings.hrCctTope > 0 && MRMNH > settings.hrCctTope) {
             MRMNH = settings.hrCctTope;
@@ -95,7 +95,7 @@ export default function Branches() {
         let trialMonths = 6;
         if (settings.hrEmpresaSize === 'pyme1') trialMonths = 12;
         else if (settings.hrEmpresaSize === 'pyme2') trialMonths = 8;
-        
+
         const isWithinTrial = totalDays <= (trialMonths * 30.5);
 
         // Preaviso (Art. 231-232)
@@ -133,7 +133,7 @@ export default function Branches() {
             const sacPreavisoPrueba = preavisoPrueba / 12;
             items.push({ concepto: 'SAC s/ Preaviso Pr.', monto: sacPreavisoPrueba, detalle: '(1/12)' });
             total += sacPreavisoPrueba;
-            
+
             if (isWithinTrial) {
                 items.push({ concepto: 'Nota: Periodo de Prueba', monto: 0, detalle: `Dentro de los ${trialMonths} meses según tamaño empresa.` });
             }
@@ -693,7 +693,7 @@ export default function Branches() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Sueldo Básico ($)</label>
-                                    <input required type="number" step="0.01" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.sueldo_basico} onChange={e => setFormData({ ...formData, sueldo_basico: Number(e.target.value) })} />
+                                    <input required type="number" step="0.01" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.sueldo_basico} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, sueldo_basico: Number(e.target.value) })} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Jornada Laboral</label>
@@ -706,7 +706,7 @@ export default function Branches() {
                                 {formData.jornada_laboral === 'Parcial' && (
                                     <div className="animate-fade-in">
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Horas Mensuales</label>
-                                        <input required type="number" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" placeholder="Ej: 120" value={formData.horas_parcial || ''} onChange={e => setFormData({ ...formData, horas_parcial: Number(e.target.value) })} />
+                                        <input required type="number" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" placeholder="Ej: 120" value={formData.horas_parcial || ''} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, horas_parcial: Number(e.target.value) })} />
                                     </div>
                                 )}
 
@@ -999,7 +999,7 @@ export default function Branches() {
                                             <td className="px-4 py-3 font-mono text-slate-400">{emp.cuil}</td>
                                             <td className="px-4 py-3 text-right">
                                                 {emp.indemnizacion_json && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => { setSelectedEmpleado(emp); setViewingIndemnizacion(JSON.parse(emp.indemnizacion_json!)); }}
                                                         className="px-3 py-1 bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-600 rounded-lg hover:text-rose-600 hover:border-rose-200 transition-colors"
                                                     >
@@ -1027,7 +1027,7 @@ export default function Branches() {
                             </div>
                             <button onClick={() => { setViewingIndemnizacion(null); setSelectedEmpleado(null); }} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600"><CloseIcon /></button>
                         </div>
-                        
+
                         <div className="p-6 overflow-y-auto flex-1 space-y-5" id="print-dismissal-detail">
                             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden print-area">
                                 <div className="bg-slate-100 px-4 py-3 flex items-center gap-2">
@@ -1035,7 +1035,7 @@ export default function Branches() {
                                     <div className="w-full">
                                         <h4 className="font-bold text-sm text-slate-700">Liquidación Final (Cálculo a fecha de baja)</h4>
                                         <p className="text-xs text-slate-500 mt-1">
-                                            <strong>Causal:</strong> {selectedEmpleado.causal_egreso} <br/>
+                                            <strong>Causal:</strong> {selectedEmpleado.causal_egreso} <br />
                                             <strong>Antigüedad calculada:</strong> {viewingIndemnizacion.anios} años
                                         </p>
                                     </div>
@@ -1069,8 +1069,8 @@ export default function Branches() {
 
                         <div className="p-5 border-t border-slate-100 flex gap-3 bg-white shrink-0">
                             <button onClick={() => { setViewingIndemnizacion(null); setSelectedEmpleado(null); }} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">Cerrar</button>
-                            <button 
-                                onClick={() => window.print()} 
+                            <button
+                                onClick={() => window.print()}
                                 className="flex-1 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2"
                             >
                                 <ReceiptIcon fontSize="small" /> Imprimir Detalle
