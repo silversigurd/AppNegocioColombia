@@ -21,6 +21,7 @@ interface Empleado {
     dni: string;
     cuil: string;
     direccion: string;
+    telefono?: string;
     partido: string;
     localidad: string;
     obra_social: string;
@@ -34,6 +35,7 @@ interface Empleado {
     estado?: string;
     fecha_egreso?: string;
     causal_egreso?: string;
+    indemnizacion_json?: string;
 }
 
 export default function Branches() {
@@ -55,6 +57,7 @@ export default function Branches() {
     const [empleadosDesvinculados, setEmpleadosDesvinculados] = useState<Empleado[]>([]);
     const [showHistorial, setShowHistorial] = useState(false);
     const [cuilError, setCuilError] = useState('');
+    const [viewingIndemnizacion, setViewingIndemnizacion] = useState<any>(null);
 
     // Calcular indemnización según LCT
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
@@ -151,7 +154,7 @@ export default function Branches() {
     const [formData, setFormData] = useState<Empleado>({
         nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
         localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Formal'
+        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Formal', telefono: ''
     });
 
     useEffect(() => {
@@ -186,7 +189,7 @@ export default function Branches() {
             setFormData({
                 nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
                 localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Formal'
+                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Formal', telefono: ''
             });
         }
         setIsFormOpen(true);
@@ -346,7 +349,8 @@ export default function Branches() {
             await ipc.invoke('desvincular-empleado', {
                 id: selectedEmpleado.id,
                 causal_egreso: desvinculacionData.causal_egreso,
-                fecha_egreso: desvinculacionData.fecha_egreso
+                fecha_egreso: desvinculacionData.fecha_egreso,
+                indemnizacion_json: JSON.stringify(indemnizacion)
             });
             setIsDesvinculacionOpen(false);
             setSelectedEmpleado(null);
@@ -693,9 +697,13 @@ export default function Branches() {
                                     <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">Contacto y Obra Social</h4>
                                 </div>
 
-                                <div className="col-span-2">
+                                <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Dirección Completa</label>
                                     <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Teléfono</label>
+                                    <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.telefono || ''} onChange={e => setFormData({ ...formData, telefono: e.target.value })} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Localidad</label>
@@ -962,6 +970,7 @@ export default function Branches() {
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Causal de Egreso</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Fecha Baja</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">CUIL</th>
+                                        <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -971,10 +980,118 @@ export default function Branches() {
                                             <td className="px-4 py-3 text-slate-500">{emp.causal_egreso}</td>
                                             <td className="px-4 py-3 text-slate-500">{emp.fecha_egreso}</td>
                                             <td className="px-4 py-3 font-mono text-slate-400">{emp.cuil}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                {emp.indemnizacion_json && (
+                                                    <button 
+                                                        onClick={() => { setSelectedEmpleado(emp); setViewingIndemnizacion(JSON.parse(emp.indemnizacion_json!)); }}
+                                                        className="px-3 py-1 bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-600 rounded-lg hover:text-rose-600 hover:border-rose-200 transition-colors"
+                                                    >
+                                                        Ver Detalle
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Modal Detalle de Baja Preservado */}
+            {viewingIndemnizacion && selectedEmpleado && (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 flex flex-col max-h-[90vh]">
+                        <div className="p-5 border-b border-rose-100 bg-gradient-to-r from-slate-50 to-slate-100 flex justify-between items-center text-slate-800">
+                            <div>
+                                <h2 className="text-xl font-bold">Detalle de Liquidación Final</h2>
+                                <p className="text-sm text-slate-500 font-medium">Archivado: {selectedEmpleado.nombre} | Baja: {selectedEmpleado.fecha_egreso}</p>
+                            </div>
+                            <button onClick={() => { setViewingIndemnizacion(null); setSelectedEmpleado(null); }} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600"><CloseIcon /></button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto flex-1 space-y-5" id="print-dismissal-detail">
+                            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden print-area">
+                                <div className="bg-slate-100 px-4 py-3 flex items-center gap-2">
+                                    <ReceiptIcon className="text-rose-500" fontSize="small" />
+                                    <div className="w-full">
+                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final (Cálculo a fecha de baja)</h4>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            <strong>Causal:</strong> {selectedEmpleado.causal_egreso} <br/>
+                                            <strong>Antigüedad calculada:</strong> {viewingIndemnizacion.anios} años
+                                        </p>
+                                    </div>
+                                </div>
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-50">
+                                            <th className="text-left px-4 py-2 text-xs text-slate-500 font-bold uppercase">Concepto</th>
+                                            <th className="text-left px-4 py-2 text-xs text-slate-500 font-bold uppercase">Detalle</th>
+                                            <th className="text-right px-4 py-2 text-xs text-slate-500 font-bold uppercase">Monto Estimado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {viewingIndemnizacion.items?.map((item: any, i: number) => (
+                                            <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                                                <td className="px-4 py-2.5 font-medium text-slate-700">{item.concepto}</td>
+                                                <td className="px-4 py-2.5 text-slate-400 text-xs">{item.detalle}</td>
+                                                <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-AR')}` : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {viewingIndemnizacion.total > 0 && (
+                                    <div className="px-4 py-4 bg-slate-800 flex justify-between items-center text-white">
+                                        <span className="font-bold">TOTAL ESTIMADO</span>
+                                        <span className="text-xl font-black">${Math.round(viewingIndemnizacion.total).toLocaleString('es-AR')}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-5 border-t border-slate-100 flex gap-3 bg-white shrink-0">
+                            <button onClick={() => { setViewingIndemnizacion(null); setSelectedEmpleado(null); }} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">Cerrar</button>
+                            <button 
+                                onClick={() => ipc.invoke('print-current-page')} 
+                                className="flex-1 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                            >
+                                <ReceiptIcon fontSize="small" /> Imprimir Detalle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {viewingIndemnizacion && selectedEmpleado && (
+                <div className="hidden print:block print-only p-8 text-black bg-white w-full min-h-screen">
+                    <div className="mb-6 pb-4 border-b-2 border-slate-800">
+                        <h2 className="text-2xl font-bold m-0">Detalle de Liquidación Final</h2>
+                        <p className="mt-2 text-sm"><strong>Empleado:</strong> {selectedEmpleado.nombre} (CUIL: {selectedEmpleado.cuil})</p>
+                        <p className="text-sm"><strong>Ingreso:</strong> {selectedEmpleado.fecha_ingreso} | <strong>Egreso:</strong> {selectedEmpleado.fecha_egreso}</p>
+                        <p className="text-sm"><strong>Causal:</strong> {selectedEmpleado.causal_egreso}</p>
+                    </div>
+                    <table className="w-full border-collapse mt-4 text-sm">
+                        <thead className="bg-slate-100">
+                            <tr>
+                                <th className="border border-slate-300 p-3 text-left font-bold text-slate-700">Concepto</th>
+                                <th className="border border-slate-300 p-3 text-left font-bold text-slate-700">Detalle</th>
+                                <th className="border border-slate-300 p-3 text-right font-bold text-slate-700">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {viewingIndemnizacion.items?.map((item: any, idx: number) => (
+                                <tr key={idx}>
+                                    <td className="border border-slate-300 p-3 text-slate-800">{item.concepto}</td>
+                                    <td className="border border-slate-300 p-3 text-slate-600">{item.detalle}</td>
+                                    <td className="border border-slate-300 p-3 text-right font-bold text-slate-800">{item.monto > 0 ? '$' + Math.round(item.monto).toLocaleString('es-AR') : '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {viewingIndemnizacion.total > 0 && (
+                        <div className="bg-slate-800 text-white mt-6 p-4 flex justify-between font-bold text-lg rounded-xl">
+                            <span>TOTAL ESTIMADO</span>
+                            <span>${Math.round(viewingIndemnizacion.total).toLocaleString('es-AR')}</span>
                         </div>
                     )}
                 </div>

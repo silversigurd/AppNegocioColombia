@@ -62,6 +62,8 @@ function initDb() {
       estado TEXT DEFAULT 'Activo',
       fecha_egreso TEXT,
       causal_egreso TEXT,
+      telefono TEXT,
+      indemnizacion_json TEXT,
       FOREIGN KEY(sucursal_id) REFERENCES Sucursales(id)
     )`);
 
@@ -82,7 +84,9 @@ function initDb() {
       "ALTER TABLE Empleados ADD COLUMN modalidad_contratacion TEXT DEFAULT 'Formal'",
       "ALTER TABLE Empleados ADD COLUMN estado TEXT DEFAULT 'Activo'",
       "ALTER TABLE Empleados ADD COLUMN fecha_egreso TEXT",
-      "ALTER TABLE Empleados ADD COLUMN causal_egreso TEXT"
+      "ALTER TABLE Empleados ADD COLUMN causal_egreso TEXT",
+      "ALTER TABLE Empleados ADD COLUMN telefono TEXT",
+      "ALTER TABLE Empleados ADD COLUMN indemnizacion_json TEXT"
     ];
     empleadosMigrations.forEach(cmd => {
       db.run(cmd, (innerErr) => {

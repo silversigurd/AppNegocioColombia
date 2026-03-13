@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { setupIpcHandlers } = require('./src/backend/ipcHandlers.cjs');
 
@@ -26,6 +26,15 @@ function createWindow() {
     // In production, load the built index.html
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+
+  // Handle native printing request from renderer to avoid blocking main thread
+  ipcMain.handle('print-current-page', async (event, options) => {
+    return new Promise((resolve) => {
+      event.sender.print(options || { silent: false, printBackground: true }, (success, failureReason) => {
+        resolve({ success, failureReason });
+      });
+    });
+  });
 }
 
 app.whenReady().then(() => {

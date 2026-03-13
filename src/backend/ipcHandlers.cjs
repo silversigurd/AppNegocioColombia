@@ -536,7 +536,7 @@ function setupIpcHandlers() {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-            modalidad_contratacion
+            modalidad_contratacion, telefono
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -545,14 +545,14 @@ function setupIpcHandlers() {
                     nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
                     direccion, partido, localidad, obra_social, fecha_ingreso,
                     categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-                    modalidad_contratacion, estado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
+                    modalidad_contratacion, telefono, estado
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
-                modalidad_contratacion || 'Formal'
+                modalidad_contratacion || 'Formal', telefono || null
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true, id: this.lastID });
@@ -565,7 +565,7 @@ function setupIpcHandlers() {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-            modalidad_contratacion
+            modalidad_contratacion, telefono
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -574,14 +574,14 @@ function setupIpcHandlers() {
                     nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
                     direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
                     categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?,
-                    modalidad_contratacion = ?
+                    modalidad_contratacion = ?, telefono = ?
                 WHERE id = ?
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
-                modalidad_contratacion || 'Formal', id
+                modalidad_contratacion || 'Formal', telefono || null, id
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
@@ -598,12 +598,12 @@ function setupIpcHandlers() {
         });
     });
 
-    ipcMain.handle('desvincular-empleado', async (event, { id, causal_egreso, fecha_egreso }) => {
+    ipcMain.handle('desvincular-empleado', async (event, { id, causal_egreso, fecha_egreso, indemnizacion_json }) => {
         return new Promise((resolve, reject) => {
             const query = `
-                UPDATE Empleados SET estado = 'Desvinculado', causal_egreso = ?, fecha_egreso = ? WHERE id = ?
+                UPDATE Empleados SET estado = 'Desvinculado', causal_egreso = ?, fecha_egreso = ?, indemnizacion_json = ? WHERE id = ?
             `;
-            db.run(query, [causal_egreso, fecha_egreso, id], function (err) {
+            db.run(query, [causal_egreso, fecha_egreso, indemnizacion_json || null, id], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
             });

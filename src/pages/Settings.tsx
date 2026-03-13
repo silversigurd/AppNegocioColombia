@@ -25,6 +25,7 @@ export default function Settings() {
     const [selectedLogoPath, setSelectedLogoPath] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [cuitError, setCuitError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keep form in sync when settings reload from DB (e.g. after save or initial async load).
@@ -50,6 +51,21 @@ export default function Settings() {
         const electronFile = file as any;
         if (electronFile.path) {
             setSelectedLogoPath(electronFile.path);
+        }
+    };
+
+    const handleCuitChange = (val: string) => {
+        const typed = val.replace(/\D/g, '').slice(0, 11);
+        let formatted = '';
+        if (typed.length > 0) formatted += typed.slice(0, 2);
+        if (typed.length > 2) formatted += '-' + typed.slice(2, 10);
+        if (typed.length > 10) formatted += '-' + typed.slice(10, 11);
+
+        setForm({ ...form, businessCuit: formatted });
+        if (typed.length > 0 && typed.length < 11) {
+            setCuitError('El CUIT/CUIL debe tener 11 dígitos.');
+        } else {
+            setCuitError('');
         }
     };
 
@@ -166,11 +182,13 @@ export default function Settings() {
                                 <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">CUIT</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
-                                    value={form.businessCuit}
-                                    onChange={e => setForm({ ...form, businessCuit: e.target.value })}
+                                    className={`w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700 ${cuitError ? 'border-rose-400' : 'border-slate-200'}`}
+                                    value={form.businessCuit || ''}
+                                    onChange={e => handleCuitChange(e.target.value)}
                                     placeholder="20-12345678-9"
+                                    maxLength={13}
                                 />
+                                {cuitError && <p className="text-xs text-rose-500 mt-1 font-semibold">{cuitError}</p>}
                             </div>
                             <div>
                                 <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Dirección</label>

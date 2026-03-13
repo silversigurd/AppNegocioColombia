@@ -14,6 +14,7 @@ Si quieres probar cambios antes de compilar:
 Para generar la carpeta "dist-electron" con el ejecutable listo 
 para usar o distribuir:
 > npm run electron:build
+> npm run electron:dist
 
 
 3. ACTIVACIÓN DE LICENCIAS (Para Clientes)
