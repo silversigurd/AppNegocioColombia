@@ -37,10 +37,11 @@
       "createStartMenuShortcut": true,
       "shortcutName": "CommerceOS Pro",
       "uninstallDisplayName": "Desinstalar CommerceOS Pro",
-      "license": "license.txt",
+      "license": "license.rtf",
       "installerLanguages": [
         "es_ES"
-      ]
+      ],
+      "unicode": true
     },
     "asar": true,
     "asarUnpack": [
