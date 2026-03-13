@@ -14,7 +14,6 @@ Si quieres probar cambios antes de compilar:
 Para generar la carpeta "dist-electron" con el ejecutable listo 
 para usar o distribuir:
 > npm run electron:build
-> npm run electron:dist
 
 
 3. ACTIVACIÓN DE LICENCIAS (Para Clientes)
@@ -25,7 +24,7 @@ Cuando un cliente instala el programa, este le mostrará un "Hardware ID"
 > node scripts/generate-key.cjs <HardwareID-Que-Te-Mande-El-Cliente>
 
 Ejemplo:
-> node scripts/generate-key.cjs 4c24b242-0000-1111-2222-333344445555
+> node scripts/generate-key.cjs aec38bc8-cd0b-48ed-9f01-073efeda69ce
 
 El comando te devolverá una clave como "ABCD-1234-EFGH-5678" que es la 
 que el cliente debe pegar en la app para activarla.
@@ -40,3 +39,31 @@ se guardan en la carpeta de datos de aplicación de Windows:
 - Base de datos: commerce_data.sqlite
 - Contratos: contratos_rrhh/
 ========================================================================
+
+
+
+Para cambiar el nombre de usuario del administrador principal por defecto, tienes que modificar el archivo de inicialización de la base de datos.
+
+El archivo es: 
+
+db.cjs
+
+Busca la sección cerca de la línea 329. Actualmente el código está así:
+
+javascript
+// Seed Admin
+const countUser = await dbGet('SELECT COUNT(*) as count FROM Usuarios');
+if (countUser.count === 0) {
+  const defaultHash = crypto.createHash('sha256').update('admin').digest('hex');
+  await dbRun(`INSERT INTO Usuarios (username, password_hash, rol) VALUES (?, ?, ?)`, ['Principal', defaultHash, 'Admin']);
+}
+Para cambiarlo:
+
+Nombre de usuario: Cambia 'Principal' (en la línea 330) por el nombre que desees.
+Contraseña: Si también quieres cambiar la contraseña inicial, cambia 'admin' (en la línea 329) por la clave que prefieras.
+IMPORTANT
+
+Este cambio solo tendrá efecto si la base de datos se crea desde cero (es decir, si borras el archivo commerce_data.sqlite antes de iniciar la app).
+
+Si la base de datos ya existe, tendrás que cambiar el usuario manualmente desde la sección de Usuarios dentro del programa una vez iniciada la sesión, o borrar la base de datos para que se vuelva a generar con los nuevos valores.
+
