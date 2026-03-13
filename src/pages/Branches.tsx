@@ -659,7 +659,7 @@ export default function Branches() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha de Ingreso (YYYY-MM-DD)</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha de Ingreso (DD-MM-YYYY)</label>
                                     <input required type="date" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.fecha_ingreso} onChange={e => setFormData({ ...formData, fecha_ingreso: e.target.value })} />
                                 </div>
                                 <div>
@@ -711,7 +711,7 @@ export default function Branches() {
                                 )}
 
                                 <div className="col-span-2">
-                                    <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">Contacto y Obra Social</h4>
+                                    <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">Contacto y Cobertura Médica</h4>
                                 </div>
 
                                 <div>
@@ -727,7 +727,7 @@ export default function Branches() {
                                     <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Obra Social</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cobertura Médica</label>
                                     <input type="text" placeholder="Ej: OSECAC" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.obra_social} onChange={e => setFormData({ ...formData, obra_social: e.target.value })} />
                                 </div>
                             </form>
