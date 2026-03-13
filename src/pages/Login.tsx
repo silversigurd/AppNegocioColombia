@@ -56,9 +56,11 @@ const Login: React.FC = () => {
                         <label className="block text-sm font-medium mb-1 text-slate-300">Usuario</label>
                         <input
                             type="text"
+                            autoFocus
+                            disabled={loading}
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
                             placeholder="Ej. Principal"
                             autoComplete="username"
                         />
@@ -68,9 +70,10 @@ const Login: React.FC = () => {
                         <label className="block text-sm font-medium mb-1 text-slate-300">Contraseña</label>
                         <input
                             type="password"
+                            disabled={loading}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
                             placeholder="••••••••"
                             autoComplete="current-password"
                         />

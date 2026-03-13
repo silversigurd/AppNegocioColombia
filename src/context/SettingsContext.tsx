@@ -10,6 +10,9 @@ interface BusinessSettings {
     printerProfile: string;
     logoPath: string | null;
     logoBase64: string | null;
+    hrEmpresaSize: string;
+    hrAplicaFondoCese: boolean;
+    hrCctTope: number;
 }
 
 const defaultSettings: BusinessSettings = {
@@ -20,6 +23,9 @@ const defaultSettings: BusinessSettings = {
     printerProfile: configJson.printerProfile || '80mm',
     logoPath: null,
     logoBase64: null,
+    hrEmpresaSize: 'pyme1',
+    hrAplicaFondoCese: false,
+    hrCctTope: 0,
 };
 
 interface SettingsContextType {
@@ -51,6 +57,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 printerProfile: dbSettings.printerProfile || defaultSettings.printerProfile,
                 logoPath: dbSettings.logoPath || null,
                 logoBase64,
+                hrEmpresaSize: dbSettings.hrEmpresaSize || defaultSettings.hrEmpresaSize,
+                hrAplicaFondoCese: dbSettings.hrAplicaFondoCese === 'true' || dbSettings.hrAplicaFondoCese === true,
+                hrCctTope: Number(dbSettings.hrCctTope) || defaultSettings.hrCctTope,
             });
         } catch (e) {
             console.error('Failed to load settings from DB', e);

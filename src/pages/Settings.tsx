@@ -19,6 +19,9 @@ export default function Settings() {
         businessAddress: settings.businessAddress,
         tagline: settings.tagline,
         printerProfile: settings.printerProfile,
+        hrEmpresaSize: settings.hrEmpresaSize,
+        hrAplicaFondoCese: settings.hrAplicaFondoCese,
+        hrCctTope: settings.hrCctTope,
     });
 
     const [logoPreview, setLogoPreview] = useState<string | null>(settings.logoBase64 || null);
@@ -37,6 +40,9 @@ export default function Settings() {
             businessAddress: settings.businessAddress,
             tagline: settings.tagline,
             printerProfile: settings.printerProfile,
+            hrEmpresaSize: settings.hrEmpresaSize,
+            hrAplicaFondoCese: settings.hrAplicaFondoCese,
+            hrCctTope: settings.hrCctTope,
         });
         setLogoPreview(settings.logoBase64 || null);
         setSelectedLogoPath(null);
@@ -231,6 +237,52 @@ export default function Settings() {
                             <option value="A4">A4 (Impresora de oficina)</option>
                         </select>
                         <p className="text-[10px] text-slate-400 mt-1 ml-1">El ancho afecta el formato del texto en los tickets impresos.</p>
+                    </div>
+                </div>
+
+                {/* HR Law Settings (Ley Bases 2024) */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                        <SettingsIcon fontSize="small" /> Configuración RRHH (Ley Bases 2024)
+                    </h2>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Tamaño de la Empresa (Periodo de Prueba)</label>
+                            <select
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700 appearance-none"
+                                value={form.hrEmpresaSize}
+                                onChange={e => setForm({ ...form, hrEmpresaSize: e.target.value })}
+                            >
+                                <option value="pyme1">PyME 1 (Hasta 5 empleados) - 12 meses prueba</option>
+                                <option value="pyme2">PyME 2 (6 a 100 empleados) - 8 meses prueba</option>
+                                <option value="empresa">Empresa (&gt; 100 empleados) - 6 meses prueba</option>
+                            </select>
+                        </div>
+                        
+                        <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <div>
+                                <p className="text-sm font-bold text-slate-700">Sistema de Fondo de Cese Laboral</p>
+                                <p className="text-[10px] text-slate-500">Habilitar si la empresa opta por el fondo de cese en lugar del Art. 245 LCT.</p>
+                            </div>
+                            <div 
+                                onClick={() => setForm({ ...form, hrAplicaFondoCese: !form.hrAplicaFondoCese })}
+                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${form.hrAplicaFondoCese ? 'bg-primary-600' : 'bg-slate-300'}`}
+                            >
+                                <div className={`bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${form.hrAplicaFondoCese ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Tope Indemnizatorio (CCT 130/75)</label>
+                            <input
+                                type="number"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                value={form.hrCctTope}
+                                onChange={e => setForm({ ...form, hrCctTope: Number(e.target.value) })}
+                                placeholder="Ej: 1500000"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1 ml-1">Tope de la base de cálculo para el Art. 245 (Tope Vizzoti).</p>
+                        </div>
                     </div>
                 </div>
 

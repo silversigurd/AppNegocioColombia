@@ -1,4 +1,3 @@
-import React from 'react';
 import PrintIcon from '@mui/icons-material/Print';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import BusinessIcon from '@mui/icons-material/Business';

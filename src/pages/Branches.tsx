@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSettings } from '../context/SettingsContext';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -39,6 +40,7 @@ interface Empleado {
 }
 
 export default function Branches() {
+    const { settings } = useSettings();
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -59,81 +61,96 @@ export default function Branches() {
     const [cuilError, setCuilError] = useState('');
     const [viewingIndemnizacion, setViewingIndemnizacion] = useState<any>(null);
 
-    // Calcular indemnización según LCT
+    // Calcular indemnización según LCT y Ley Bases 2024
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
         const ingreso = new Date(emp.fecha_ingreso);
         const egreso = new Date(fechaEgreso);
-        const msYear = 1000 * 3600 * 24 * 365.25;
-        const aniosTotales = (egreso.getTime() - ingreso.getTime()) / msYear;
-        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales)); // mínimo 1 año; redondear hacia arriba fracción > 3 meses
+        const msDay = 1000 * 3600 * 24;
+        const msYear = msDay * 365.25;
+        const totalDays = (egreso.getTime() - ingreso.getTime()) / msDay;
+        const aniosTotales = totalDays / 365.25;
+        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales)); 
         const basico = Number(emp.sueldo_basico) || 0;
-        // Mejor remuneración mensual normal y habitual (simplificado)
-        const MRMNH = basico;
+        
+        // MRMNH sin SAC según Ley Bases 2024
+        let MRMNH = basico;
+        
+        // Aplicar Tope CCT (Tope Vizzoti) si existe
+        if (settings.hrCctTope > 0 && MRMNH > settings.hrCctTope) {
+            MRMNH = settings.hrCctTope;
+        }
 
-        // Aguinaldos proporcionales al año actual
         const inicioAnio = new Date(egreso.getFullYear(), 0, 1);
         const mesesTranscurridos = (egreso.getTime() - inicioAnio.getTime()) / (msYear / 12);
-        const aguinaldoProporcional = (MRMNH / 12) * Math.min(mesesTranscurridos, 12);
+        const aguinaldoProporcional = (Number(emp.sueldo_basico) / 12) * Math.min(mesesTranscurridos, 12);
 
-        // Vacaciones proporcionales de LCT
         const diasVacacionesAnuales = aniosTotales < 5 ? 14 : aniosTotales < 10 ? 21 : aniosTotales < 20 ? 28 : 35;
         const diasVacacionesProp = Math.floor((diasVacacionesAnuales / 12) * (mesesTranscurridos % 12));
-        const vacacionesProporcional = (MRMNH / 25) * diasVacacionesProp;
+        const vacacionesProporcional = (Number(emp.sueldo_basico) / 25) * diasVacacionesProp;
 
         let items: { concepto: string, monto: number, detalle: string }[] = [];
         let total = 0;
 
+        // Determinar si está en periodo de prueba según tamaño de empresa
+        let trialMonths = 6;
+        if (settings.hrEmpresaSize === 'pyme1') trialMonths = 12;
+        else if (settings.hrEmpresaSize === 'pyme2') trialMonths = 8;
+        
+        const isWithinTrial = totalDays <= (trialMonths * 30.5);
+
         // Preaviso (Art. 231-232)
         let diasPreaviso = 0;
-        if (causal.includes('sin justa causa')) {
-            diasPreaviso = aniosTotales < 0.25 ? 15 : aniosTotales < 5 ? 30 : 60;
+        if (causal.includes('sin justa causa') && !isWithinTrial) {
+            diasPreaviso = aniosTotales < 5 ? 30 : 60;
             const preaviso = (MRMNH / 30) * diasPreaviso;
             items.push({ concepto: 'Preaviso (Art. 231 LCT)', monto: preaviso, detalle: `${diasPreaviso} días` });
             total += preaviso;
 
-            // SAC sobre Preaviso
             const sacPreaviso = preaviso / 12;
             items.push({ concepto: 'SAC s/ Preaviso', monto: sacPreaviso, detalle: '(1/12 del preaviso)' });
             total += sacPreaviso;
 
-            // Indemnización por antigüedad (Art. 245)
-            const antiguedad = MRMNH * aniosRedondeados;
-            items.push({ concepto: 'Indemnización por Antigüedad (Art. 245)', monto: antiguedad, detalle: `${aniosRedondeados} años x $${MRMNH.toLocaleString('es-AR')}` });
-            total += antiguedad;
+            // Indemnización por antigüedad (Art. 245) - O Fondo de Cese
+            if (settings.hrAplicaFondoCese) {
+                items.push({ concepto: 'Antigüedad (Fondo de Cese)', monto: 0, detalle: 'Cubierto por aportes mensuales al Fondo de Cese Laboral.' });
+            } else {
+                const antiguedad = MRMNH * aniosRedondeados;
+                items.push({ concepto: 'Indemnización por Antigüedad (Art. 245)', monto: antiguedad, detalle: `${aniosRedondeados} años x $${MRMNH.toLocaleString('es-AR')} (Tope aplicado si corresponde)` });
+                total += antiguedad;
+            }
         }
 
         if (causal.includes('con justa causa')) {
-            // Solo vacaciones y aguinald prop
             items.push({ concepto: 'Nota: Despido con justa causa (Art. 242)', monto: 0, detalle: 'No genera indemnización por antigüedad.' });
         }
 
-        if (causal.includes('Fin de periodo de prueba')) {
-            // Ley Bases: Periodo de prueba ahora es de 6 meses gral.
-            // Para el despido en este periodo, corresponde preaviso de 15 días.
+        if (causal.includes('Fin de periodo de prueba') || (causal.includes('sin justa causa') && isWithinTrial)) {
             diasPreaviso = 15;
             const preavisoPrueba = (MRMNH / 30) * diasPreaviso;
-            items.push({ concepto: 'Preaviso Periodo Prueba (Art. 92 bis)', monto: preavisoPrueba, detalle: `${diasPreaviso} días` });
+            items.push({ concepto: 'Preaviso Periodo Prueba (Art. 92 bis)', monto: preavisoPrueba, detalle: `${diasPreaviso} días (Ley Bases 2024)` });
             total += preavisoPrueba;
 
             const sacPreavisoPrueba = preavisoPrueba / 12;
             items.push({ concepto: 'SAC s/ Preaviso Pr.', monto: sacPreavisoPrueba, detalle: '(1/12)' });
             total += sacPreavisoPrueba;
+            
+            if (isWithinTrial) {
+                items.push({ concepto: 'Nota: Periodo de Prueba', monto: 0, detalle: `Dentro de los ${trialMonths} meses según tamaño empresa.` });
+            }
         }
 
         if (causal.includes('Renuncia')) {
-            // Preaviso que debe el empleado al empleador (informativo)
-            const diasPreaviso2 = aniosTotales < 0.25 ? 15 : 30;
-            items.push({ concepto: 'Prórroga de preaviso a entregar al empleador', monto: 0, detalle: `${diasPreaviso2} días (s/ Art. 231)` });
+            const diasPreaviso2 = isWithinTrial ? 15 : 30;
+            items.push({ concepto: 'Prórroga de preaviso (Informativo)', monto: 0, detalle: `${diasPreaviso2} días de preaviso omitido por el trabajador.` });
         }
 
-        // Vacaciones proporcionales y SAC siempre se pagan
         items.push({ concepto: 'Vacaciones Proporcionales (LCT)', monto: vacacionesProporcional, detalle: `${diasVacacionesProp} días` });
         total += vacacionesProporcional;
 
         items.push({ concepto: 'SAC Proporcional por período', monto: aguinaldoProporcional, detalle: `${Math.min(mesesTranscurridos, 12).toFixed(1)} meses` });
         total += aguinaldoProporcional;
 
-        return { items, total, anios: aniosTotales.toFixed(2), MRMNH };
+        return { items, total, anios: aniosTotales.toFixed(2), MRMNH, isWithinTrial, trialMonths };
     };
 
     // CCT Categories Management
@@ -890,7 +907,7 @@ export default function Branches() {
                                         <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
                                         <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
                                         <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
-                                        <option value="Fin de periodo de prueba (Art. 92 bis - Ahora 6 meses)">Fin de periodo de prueba (Art. 92 bis - Ahora 6 meses)</option>
+                                        <option value="Fin de periodo de prueba (Art. 92 bis)">Fin de periodo de prueba (Art. 92 bis)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -1053,7 +1070,7 @@ export default function Branches() {
                         <div className="p-5 border-t border-slate-100 flex gap-3 bg-white shrink-0">
                             <button onClick={() => { setViewingIndemnizacion(null); setSelectedEmpleado(null); }} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">Cerrar</button>
                             <button 
-                                onClick={() => ipc.invoke('print-current-page')} 
+                                onClick={() => window.print()} 
                                 className="flex-1 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2"
                             >
                                 <ReceiptIcon fontSize="small" /> Imprimir Detalle

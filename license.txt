@@ -23,7 +23,7 @@ c) Utilizar el Software para cualquier fin ilegal o no autorizado por este Acuer
 
 5. MARCO LEGAL Y CUMPLIMIENTO (ARGENTINA)
 5.1. El Software incluye herramientas de cálculo y gestión documental (ej. RRHH, Recibos) basadas en la normativa vigente (Ley de Contrato de Trabajo, Ley Bases 2024, CCT 130/75, entre otras). 
-5.2. Orientación Legal: Los cálculos de liquidaciones e impuestos provistos por el Software son estimados y orientativos. El Desarrollador no asume responsabilidad legal, contable ni fiscal frente a posibles litigios. Es obligación del Licenciatario validar la información con su propio contador público o asesor legal.
+5.2. Orientación Legal: Los cálculos de liquidaciones e impuestos provistos por el Software son estimados y orientativos. El Desarrollador no asumirá responsabilidad legal, contable ni fiscal frente a posibles litigios. Es obligación del Licenciatario validar la información con su propio contador público o asesor legal.
 
 6. LIMITACIÓN DE RESPONSABILIDAD
 6.1. El Software se proporciona "tal cual" (AS IS), sin garantías de ningún tipo, ya sean expresas o implícitas.
