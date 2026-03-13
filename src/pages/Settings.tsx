@@ -22,6 +22,7 @@ export default function Settings() {
         hrEmpresaSize: settings.hrEmpresaSize,
         hrAplicaFondoCese: settings.hrAplicaFondoCese,
         hrCctTope: settings.hrCctTope,
+        arcaCompliance2026: settings.arcaCompliance2026,
     });
 
     const [logoPreview, setLogoPreview] = useState<string | null>(settings.logoBase64 || null);
@@ -43,6 +44,7 @@ export default function Settings() {
             hrEmpresaSize: settings.hrEmpresaSize,
             hrAplicaFondoCese: settings.hrAplicaFondoCese,
             hrCctTope: settings.hrCctTope,
+            arcaCompliance2026: settings.arcaCompliance2026,
         });
         setLogoPreview(settings.logoBase64 || null);
         setSelectedLogoPath(null);
@@ -258,13 +260,13 @@ export default function Settings() {
                                 <option value="empresa">Empresa (&gt; 100 empleados) - 6 meses prueba</option>
                             </select>
                         </div>
-                        
+
                         <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <div>
                                 <p className="text-sm font-bold text-slate-700">Sistema de Fondo de Cese Laboral</p>
                                 <p className="text-[10px] text-slate-500">Habilitar si la empresa opta por el fondo de cese en lugar del Art. 245 LCT.</p>
                             </div>
-                            <div 
+                            <div
                                 onClick={() => setForm({ ...form, hrAplicaFondoCese: !form.hrAplicaFondoCese })}
                                 className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${form.hrAplicaFondoCese ? 'bg-primary-600' : 'bg-slate-300'}`}
                             >
@@ -282,6 +284,25 @@ export default function Settings() {
                                 placeholder="Ej: 1500000"
                             />
                             <p className="text-[10px] text-slate-400 mt-1 ml-1">Tope de la base de cálculo para el Art. 245 (Tope Vizzoti).</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ARCA 2026 Compliance */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 border-l-4 border-l-amber-400">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                        <SettingsIcon fontSize="small" className="text-amber-500" /> Régimen ARCA 2026
+                    </h2>
+                    <div className="flex items-center justify-between bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+                        <div>
+                            <p className="text-sm font-bold text-slate-700 font-mono">Cumplimiento ARCA (2026)</p>
+                            <p className="text-[10px] text-slate-500 max-w-sm">Habilita la discriminación de impuestos internos y alícuotas de IVA por producto según Ley 27.743.</p>
+                        </div>
+                        <div
+                            onClick={() => setForm({ ...form, arcaCompliance2026: !form.arcaCompliance2026 })}
+                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${form.arcaCompliance2026 ? 'bg-amber-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${form.arcaCompliance2026 ? 'translate-x-6' : 'translate-x-0'}`} />
                         </div>
                     </div>
                 </div>

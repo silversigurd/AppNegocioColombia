@@ -1,5 +1,5 @@
 const { ipcMain, app } = require('electron');
-const db = require('./db.cjs');
+const { db, dbReady } = require('./db.cjs');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -7,7 +7,9 @@ const { machineIdSync } = require('node-machine-id');
 
 const SECRET_SALT = 'CommerceOS_Pro_Secret_2026';
 
-function setupIpcHandlers() {
+async function setupIpcHandlers() {
+    // Wait for DB initialization (migrations) before allowing IPC calls to proceed
+    await dbReady;
     // Ejemplos básicos de operaciones (se pueden expandir según necesidad)
 
     // --- SUCURSALES ---
@@ -50,14 +52,14 @@ function setupIpcHandlers() {
 
     // --- GUARDAR VENTA ---
     ipcMain.handle('save-venta', async (event, saleData) => {
-        const { total, subtotal, impuestos, cliente_id, sucursal_id, items } = saleData;
+        const { total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia, items } = saleData;
 
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
 
-                const stmtVenta = db.prepare('INSERT INTO Ventas (total, subtotal, impuestos, cliente_id, sucursal_id) VALUES (?, ?, ?, ?, ?)');
-                stmtVenta.run(total, subtotal, impuestos, cliente_id || null, sucursal_id, function (err) {
+                const stmtVenta = db.prepare('INSERT INTO Ventas (total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                stmtVenta.run(total, subtotal, impuestos, impuestos_internos || 0, cliente_id || null, cliente_identificacion || null, sucursal_id, regimen_transparencia ? 1 : 0, function (err) {
                     if (err) {
                         db.run('ROLLBACK');
                         return reject(err);
@@ -129,13 +131,13 @@ function setupIpcHandlers() {
 
     // --- PRODUCTO CRUD ---
     ipcMain.handle('save-producto', async (event, producto) => {
-        const { codigo, nombre, descripcion, precio_compra, precio_venta, categoria_id, sucursal_id, stock_inicial } = producto;
+        const { codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, sucursal_id, stock_inicial } = producto;
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 db.run(
-                    'INSERT INTO Productos (codigo, nombre, descripcion, precio_compra, precio_venta, categoria_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    [codigo, nombre, descripcion, precio_compra, precio_venta, categoria_id],
+                    'INSERT INTO Productos (codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id],
                     function (err) {
                         if (err) {
                             db.run('ROLLBACK');
@@ -163,13 +165,13 @@ function setupIpcHandlers() {
     });
 
     ipcMain.handle('update-producto', async (event, producto) => {
-        const { id, codigo, nombre, descripcion, precio_compra, precio_venta, categoria_id, stock, sucursal_id } = producto;
+        const { id, codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, stock, sucursal_id } = producto;
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 db.run(
-                    'UPDATE Productos SET codigo = ?, nombre = ?, descripcion = ?, precio_compra = ?, precio_venta = ?, categoria_id = ? WHERE id = ?',
-                    [codigo, nombre, descripcion, precio_compra, precio_venta, categoria_id, id],
+                    'UPDATE Productos SET codigo = ?, nombre = ?, descripcion = ?, precio_compra = ?, precio_venta = ?, iva_alicuota = ?, tasa_internos = ?, categoria_id = ? WHERE id = ?',
+                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id, id],
                     (err) => {
                         if (err) {
                             db.run('ROLLBACK');
@@ -814,7 +816,7 @@ function setupIpcHandlers() {
             db.serialize(() => {
                 db.run("BEGIN TRANSACTION");
                 Object.entries(settings).forEach(([clave, valor]) => {
-                    stmt.run([clave, valor]);
+                    stmt.run([clave, String(valor)]);
                 });
                 stmt.finalize();
                 db.run("COMMIT", (err) => {

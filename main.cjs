@@ -37,8 +37,8 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  setupIpcHandlers();
+app.whenReady().then(async () => {
+  await setupIpcHandlers();
   createWindow();
 
   app.on('activate', () => {

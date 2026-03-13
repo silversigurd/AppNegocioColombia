@@ -16,6 +16,7 @@ import { utils, writeFile } from 'xlsx';
 
 import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 interface Product {
     id?: number;
@@ -26,6 +27,8 @@ interface Product {
     precio_venta: number;
     categoria_id: number | string;
     stock: number;
+    iva_alicuota?: number;
+    tasa_internos?: number;
     categoria_nombre?: string;
 }
 
@@ -36,6 +39,7 @@ interface Category {
 
 export default function Inventory() {
     const { user } = useAuth();
+    const { settings } = useSettings();
     const [products, setProducts] = useState<Product[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -51,7 +55,9 @@ export default function Inventory() {
         precio_compra: 0,
         precio_venta: 0,
         categoria_id: '',
-        stock: 0
+        stock: 0,
+        iva_alicuota: 21,
+        tasa_internos: 0
     });
 
     // Category Management State
@@ -91,7 +97,9 @@ export default function Inventory() {
                 precio_compra: 0,
                 precio_venta: 0,
                 categoria_id: '',
-                stock: 0
+                stock: 0,
+                iva_alicuota: 21,
+                tasa_internos: 0
             });
         }
         setIsModalOpen(true);
@@ -376,7 +384,7 @@ export default function Inventory() {
             {/* Product Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 text-slate-800">
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-slate-800">
                                 {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
@@ -471,6 +479,36 @@ export default function Inventory() {
                                     />
                                 </div>
                             </div>
+
+                            {settings.arcaCompliance2026 && (
+                                <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100 grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[11px] font-black uppercase text-primary-600 mb-1 ml-1">Alícuota IVA</label>
+                                        <select
+                                            className="w-full px-4 py-3 bg-white border border-primary-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-100 transition-all font-bold text-slate-700 appearance-none"
+                                            value={formData.iva_alicuota}
+                                            onChange={(e) => setFormData({ ...formData, iva_alicuota: Number(e.target.value) })}
+                                        >
+                                            <option value={21}>21% (General)</option>
+                                            <option value={10.5}>10.5% (Reducida)</option>
+                                            <option value={27}>27% (Especial)</option>
+                                            <option value={0}>0% (Exento/No Gravado)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-black uppercase text-primary-600 mb-1 ml-1">Imp. Internos (%)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full px-4 py-3 bg-white border border-primary-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-100 transition-all font-bold text-slate-700"
+                                            value={formData.tasa_internos}
+                                            onFocus={(e) => e.target.select()}
+                                            onChange={(e) => setFormData({ ...formData, tasa_internos: Number(e.target.value) })}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="pt-4 flex gap-3">
                                 <button

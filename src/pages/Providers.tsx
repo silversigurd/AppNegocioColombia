@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import SearchIcon from '@mui/icons-material/Search';
 import AddBusinessIcon from '@mui/icons-material/AddBusiness';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import BusinessIcon from '@mui/icons-material/Business';
-import PhoneIcon from '@mui/icons-material/Phone';
-import EmailIcon from '@mui/icons-material/Email';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import EmojiPeopleIcon from '@mui/icons-material/EmojiPeople';
@@ -14,6 +12,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { ipc } from '../utils/ipc';
+import { useSettings } from '../context/SettingsContext';
 
 type Proveedor = {
     id?: number;
@@ -62,6 +61,8 @@ type Pedido = {
     fecha?: string;
     estado: 'PENDIENTE' | 'RECIBIDO';
     total: number;
+    percepciones_recibidas?: number;
+    retenciones_aplicadas?: number;
     pagado: boolean;
     items?: DetallePedido[];
 };
@@ -102,6 +103,7 @@ const emptyFormData: Proveedor = {
 };
 
 export default function Providers() {
+    const { settings } = useSettings();
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
@@ -122,6 +124,8 @@ export default function Providers() {
 
     // New Order Form State
     const [nuevoPedidoItems, setNuevoPedidoItems] = useState<DetallePedido[]>([]);
+    const [percepcionesRec, setPercepcionesRec] = useState(0);
+    const [retencionesApl, setRetencionesApl] = useState(0);
 
     const [formData, setFormData] = useState<Proveedor>(emptyFormData);
 
@@ -304,18 +308,22 @@ export default function Providers() {
     const handleGenerarNuevoPedido = async () => {
         if (nuevoPedidoItems.length === 0) return alert('El pedido debe tener al menos un producto.');
 
-        const totalPedido = nuevoPedidoItems.reduce((acc, curr) => acc + curr.subtotal, 0);
+        const totalPedido = nuevoPedidoItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0);
 
         try {
             await ipc.invoke('save-pedido', {
                 proveedor_id: activeProveedorId,
                 sucursal_id: 1,
-                total: totalPedido,
+                total: totalPedido + percepcionesRec - retencionesApl,
+                percepciones_recibidas: percepcionesRec,
+                retenciones_aplicadas: retencionesApl,
                 items: nuevoPedidoItems
             });
 
             setIsNuevoPedidoOpen(false);
             setNuevoPedidoItems([]);
+            setPercepcionesRec(0);
+            setRetencionesApl(0);
 
             // Recargar vista histórica
             const pedidos = await ipc.invoke('get-pedidos-por-proveedor', activeProveedorId, 1);
@@ -366,11 +374,11 @@ export default function Providers() {
 
             {/* Grid */}
             <div className="flex-1 overflow-y-auto pb-6">
-                {loading ? (
+                {(loading as boolean) ? (
                     <div className="flex justify-center p-12"><div className="w-8 h-8 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div></div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-                        {filteredProveedores.map(p => (
+                        {filteredProveedores.map((p: any) => (
                             <div key={p.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow relative group flex flex-col">
                                 <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                     <button onClick={() => handleOpenPedidosDesc(p.id!)} className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors" title="Pedidos / Compras">
@@ -692,7 +700,7 @@ export default function Providers() {
             {/* MODAL PEDIDOS (HISTÓRICO) */}
             {isPedidosModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-slate-50 w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                    <div className="bg-slate-50 w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                             <div>
                                 <h2 className="text-xl font-bold flex items-center gap-2">
@@ -761,7 +769,7 @@ export default function Providers() {
             {/* MODAL NUEVO PEDIDO */}
             {isNuevoPedidoOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
-                    <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                    <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800">
                         <div className="p-6 border-b border-slate-100 bg-emerald-50 text-emerald-800">
                             <h2 className="text-xl font-bold flex items-center gap-2">
                                 <AddBusinessIcon /> Generar Nueva Orden de Compra
@@ -770,16 +778,16 @@ export default function Providers() {
                         </div>
 
                         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                            <div className="mb-6">
+                            <div className="mb-6 text-slate-800">
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Añadir Producto al Pedido</label>
                                 <select
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 font-medium"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 font-medium text-slate-800"
                                     onChange={(e) => { handleAgregarItemPedido(e.target.value); e.target.value = ''; }}
                                     defaultValue=""
                                 >
-                                    <option value="" disabled>-- Selecciona un producto para agregar --</option>
+                                    <option value="" disabled className="text-slate-400">-- Selecciona un producto para agregar --</option>
                                     {productosDisponibles.map(p => (
-                                        <option key={p.id} value={p.id}>{p.codigo} - {p.nombre} (Costo Válido: ${p.precio_compra})</option>
+                                        <option key={p.id} value={p.id} className="text-slate-800">{p.codigo} - {p.nombre} (Costo Válido: ${p.precio_compra})</option>
                                     ))}
                                 </select>
                             </div>
@@ -797,7 +805,7 @@ export default function Providers() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {nuevoPedidoItems.map((item, index) => (
+                                            {nuevoPedidoItems.map((item: any, index: number) => (
                                                 <tr key={index} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-4 py-3">
                                                         <div className="font-bold text-slate-800 line-clamp-1">{item.producto_nombre}</div>
@@ -825,11 +833,45 @@ export default function Providers() {
                                             ))}
                                         </tbody>
                                     </table>
-                                    <div className="bg-emerald-50 p-4 border-t border-emerald-100 flex justify-between items-center">
-                                        <span className="font-bold text-emerald-800">Total de esta Orden:</span>
-                                        <span className="text-xl font-black text-emerald-700">
-                                            ${nuevoPedidoItems.reduce((acc, curr) => acc + curr.subtotal, 0).toFixed(2)}
-                                        </span>
+                                    {settings.arcaCompliance2026 && (
+                                        <div className="bg-white p-4 border-t border-slate-100 grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-600 mb-1">Percepciones Recibidas ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-emerald-500"
+                                                    value={percepcionesRec}
+                                                    onFocus={(e) => e.target.select()}
+                                                    onChange={(e) => setPercepcionesRec(parseFloat(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-600 mb-1">Retenciones Aplicadas ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-rose-500"
+                                                    value={retencionesApl}
+                                                    onFocus={(e) => e.target.select()}
+                                                    onChange={(e) => setRetencionesApl(parseFloat(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="bg-emerald-50 p-4 border-t border-emerald-100 flex justify-between items-center text-sm">
+                                        <div className="flex flex-col">
+                                            <span className="text-slate-500">Monto Neto: ${nuevoPedidoItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0).toFixed(2)}</span>
+                                            {settings.arcaCompliance2026 && (
+                                                <span className="text-slate-500 text-xs">Ajustes: +${percepcionesRec} / -${retencionesApl}</span>
+                                            )}
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="block font-bold text-emerald-800">Total a Pagar:</span>
+                                            <span className="text-xl font-black text-emerald-700">
+                                                ${(nuevoPedidoItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0) + percepcionesRec - retencionesApl).toFixed(2)}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             )}

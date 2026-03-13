@@ -9,16 +9,30 @@ import PrintIcon from '@mui/icons-material/Print';
 import Ticket from '../components/Ticket';
 import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
+import PersonIcon from '@mui/icons-material/Person';
+// Removed duplicate import
 
-type Product = { id: number, codigo: string, nombre: string, precio_venta: number, stock: number };
+type Product = {
+    id: number,
+    codigo: string,
+    nombre: string,
+    precio_venta: number,
+    stock: number,
+    iva_alicuota?: number,
+    tasa_internos?: number
+};
 type CartItem = Product & { quantity: number };
 
 export default function POS() {
     const { user } = useAuth();
+    const { settings } = useSettings();
     const [products, setProducts] = useState<Product[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
+    const [clienteIden, setClienteIden] = useState(''); // For large sales identification
+    const [consumoTransparente, setConsumoTransparente] = useState(false);
 
     // Last Sale Info for Printing
     const [lastSale, setLastSale] = useState<any>(null);
@@ -103,18 +117,64 @@ export default function POS() {
         (p.codigo || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const subtotal = cart.reduce((acc, item) => acc + (item.precio_venta * item.quantity), 0);
-    const tax = subtotal * 0.21; // 21% IVA Ejemplo
-    const total = subtotal + tax;
+    const calculateTotals = () => {
+        let totalNeto = 0;
+        let totalIVA = 0;
+        let totalInternos = 0;
+        let finalTotal = 0;
+
+        cart.forEach(item => {
+            const itemTotal = item.precio_venta * item.quantity;
+            if (settings.arcaCompliance2026) {
+                // Impuesto por dentro calculation
+                const ivaAlic = item.iva_alicuota || 21;
+                const internosAlic = item.tasa_internos || 0;
+
+                // Final = Neto * (1 + iva/100 + internos/100)
+                const denom = 1 + (ivaAlic / 100) + (internosAlic / 100);
+                const neto = itemTotal / denom;
+                const iva = neto * (ivaAlic / 100);
+                const internos = neto * (internosAlic / 100);
+
+                totalNeto += neto;
+                totalIVA += iva;
+                totalInternos += internos;
+                finalTotal += itemTotal;
+            } else {
+                // Legacy calculation: 21% added over subtotal
+                totalNeto += itemTotal;
+                totalIVA += itemTotal * 0.21;
+                finalTotal += itemTotal * 1.21;
+            }
+        });
+
+        return {
+            subtotal: totalNeto,
+            impuestos: totalIVA,
+            impuestos_internos: totalInternos,
+            total: finalTotal
+        };
+    };
+
+    const { subtotal, impuestos, impuestos_internos, total } = calculateTotals();
 
     const confirmPayment = async () => {
         if (cart.length === 0) return;
+
+        // ARCA: Large sales must identify the buyer
+        if (settings.arcaCompliance2026 && total > 10000000 && !clienteIden) {
+            alert('Las ventas superiores a $10.000.000 requieren identificación del comprador (CUIT/CUIL/DNI/Pasaporte)');
+            return;
+        }
 
         try {
             const saleData = {
                 total,
                 subtotal,
-                impuestos: tax,
+                impuestos,
+                impuestos_internos,
+                cliente_identificacion: clienteIden || null,
+                regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 sucursal_id: 1,
                 items: cart.map(item => ({
                     producto_id: item.id,
@@ -133,13 +193,17 @@ export default function POS() {
                 items: [...cart],
                 total,
                 subtotal,
-                impuestos: tax,
+                impuestos,
+                impuestos_internos,
+                cliente_identificacion: clienteIden,
+                regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 vendedor: user?.empleado_nombre || user?.username || 'Sistema'
             });
             setShowPrintOptions(true);
 
             alert('Venta realizada con éxito!');
             setCart([]);
+            setClienteIden('');
             loadProducts(); // Reload stock
         } catch (error) {
             console.error('Error recording sale:', error);
@@ -228,6 +292,32 @@ export default function POS() {
 
                     {/* Cart Items */}
                     <div className="flex-1 overflow-y-auto p-2">
+                        {settings.arcaCompliance2026 && (
+                            <div className="px-2 mb-2 space-y-2">
+                                <div className="relative">
+                                    <PersonIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" sx={{ fontSize: 16 }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Identificación del cliente..."
+                                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:border-primary-400 focus:ring-2 focus:ring-primary-50 outline-none"
+                                        value={clienteIden}
+                                        onChange={(e) => setClienteIden(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
+                                    <input
+                                        type="checkbox"
+                                        id="transparencia"
+                                        checked={consumoTransparente}
+                                        onChange={(e) => setConsumoTransparente(e.target.checked)}
+                                        className="w-4 h-4 accent-primary-600 cursor-pointer"
+                                    />
+                                    <label htmlFor="transparencia" className="text-[10px] font-bold text-primary-700 cursor-pointer select-none">
+                                        Régimen de Transparencia Fiscal (Discriminado)
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                         {cart.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center gap-3">
                                 <PointOfSaleIcon style={{ fontSize: 64 }} className="text-slate-200" />
@@ -267,9 +357,15 @@ export default function POS() {
                                 <span>${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between text-sm font-medium text-slate-500">
-                                <span>IVA (21%)</span>
-                                <span>${tax.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                                <span>IVA</span>
+                                <span>${impuestos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                             </div>
+                            {settings.arcaCompliance2026 && impuestos_internos > 0 && (
+                                <div className="flex justify-between text-sm font-medium text-slate-500">
+                                    <span>Imp. Internos</span>
+                                    <span>${impuestos_internos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
 
                             <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-slate-300"></div>
 

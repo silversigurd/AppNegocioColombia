@@ -13,6 +13,7 @@ interface BusinessSettings {
     hrEmpresaSize: string;
     hrAplicaFondoCese: boolean;
     hrCctTope: number;
+    arcaCompliance2026: boolean;
 }
 
 const defaultSettings: BusinessSettings = {
@@ -26,6 +27,7 @@ const defaultSettings: BusinessSettings = {
     hrEmpresaSize: 'pyme1',
     hrAplicaFondoCese: false,
     hrCctTope: 0,
+    arcaCompliance2026: false,
 };
 
 interface SettingsContextType {
@@ -49,6 +51,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 logoBase64 = await ipc.invoke('get-logo-base64', dbSettings.logoPath);
             }
 
+            const parseBool = (val: any) => val === 'true' || val === true || val === 1 || val === '1';
+
             setSettings({
                 businessName: dbSettings.businessName || defaultSettings.businessName,
                 businessCuit: dbSettings.businessCuit || defaultSettings.businessCuit,
@@ -58,8 +62,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 logoPath: dbSettings.logoPath || null,
                 logoBase64,
                 hrEmpresaSize: dbSettings.hrEmpresaSize || defaultSettings.hrEmpresaSize,
-                hrAplicaFondoCese: dbSettings.hrAplicaFondoCese === 'true' || dbSettings.hrAplicaFondoCese === true,
+                hrAplicaFondoCese: parseBool(dbSettings.hrAplicaFondoCese),
                 hrCctTope: Number(dbSettings.hrCctTope) || defaultSettings.hrCctTope,
+                arcaCompliance2026: parseBool(dbSettings.arcaCompliance2026),
             });
         } catch (e) {
             console.error('Failed to load settings from DB', e);
