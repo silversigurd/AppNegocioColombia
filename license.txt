@@ -25,13 +25,14 @@ c) Utilizar el Software para cualquier fin ilegal o no autorizado por este Acuer
 5.1. Base Legal: El Software incluye herramientas de cálculo basadas en la normativa vigente en Argentina (Ley de Contrato de Trabajo, Ley Bases 2024, CCT 130/75, entre otras).
 5.2. Servicio de Actualización (Comisión Mensual): El Licenciatario podrá optar por contratar un servicio de actualización técnica y legal. En caso de requerirlo, se cobrará una comisión mensual fija que garantizará que el Software se mantenga actualizado respecto a cambios en las leyes laborales, alícuotas impositivas y escalas salariales de los convenios aplicables. El incumplimiento en el pago de esta comisión facultará al Desarrollador a suspender el acceso a dichas actualizaciones.
 5.3. Orientación Legal: Los cálculos provistos son estimados y orientativos. El Desarrollador no asume responsabilidad legal, contable ni fiscal frente a posibles litigios. Es obligación del Licenciatario validar la información con su propio contador público o asesor legal.
+5.4. Acuerdos de Compensación: Las funcionalidades de "Compensación Económica" o similares son herramientas de carácter administrativo propuestas para facilitar acuerdos voluntarios entre el empleador y el empleado. El Licenciatario reconoce que, dada la irrenunciabilidad de ciertos derechos laborales (Art. 12 y 162 LCT), el uso de estas herramientas es bajo su exclusiva responsabilidad, manteniendo indemne al Software y sus desarrolladores ante cualquier reclamo de terceros o sanciones de organismos de control.
 
 6. LIMITACIÓN DE RESPONSABILIDAD
 6.1. El Software se proporciona "tal cual" (AS IS), sin garantías de ningún tipo.
 6.2. En ningún caso el Desarrollador será responsable por daños directos, indirectos, incidentales o consecuentes (incluyendo pérdida de datos, multas administrativas, lucro cesante o interrupción del negocio) que surjan del uso o la imposibilidad de usar el Software.
 
-7. INDEMNIDAD
-7.1. El Licenciatario se compromete a mantener indemne al Desarrollador frente a cualquier reclamo, demanda, multa o sanción (incluyendo honorarios legales) derivados de un uso negligente del Software, incumplimiento de las leyes laborales locales o carga de información inexacta por parte del Licenciatario.
+7. INDEMNIDAD Y DESLINDE DE RESPONSABILIDAD
+7.1. El Licenciatario se compromete a mantener indemne al Desarrollador frente a cualquier reclamo, demanda, multa o sanción (incluyendo honorarios legales) derivados de un uso negligente del Software, incumplimiento de las leyes laborales locales, interpretación errónea de cálculos o carga de información inexacta por parte del Licenciatario. El uso de documentos generados por el Software (contratos, notas, recibos) corre por cuenta y riesgo del Licenciatario.
 
 8. TERMINACIÓN
 8.1. Este EULA es efectivo hasta su terminación. Sus derechos bajo esta licencia terminarán automáticamente y sin previo aviso si usted incumple cualquiera de los términos.

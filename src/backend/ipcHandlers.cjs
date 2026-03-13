@@ -538,7 +538,7 @@ async function setupIpcHandlers() {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-            modalidad_contratacion, telefono
+            modalidad_contratacion, telefono, ajustes_proximos_json
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -547,14 +547,14 @@ async function setupIpcHandlers() {
                     nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
                     direccion, partido, localidad, obra_social, fecha_ingreso,
                     categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-                    modalidad_contratacion, telefono, estado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
+                    modalidad_contratacion, telefono, ajustes_proximos_json, estado
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
-                modalidad_contratacion || 'Formal', telefono || null
+                modalidad_contratacion || 'Formal', telefono || null, ajustes_proximos_json || null
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true, id: this.lastID });
@@ -567,7 +567,7 @@ async function setupIpcHandlers() {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
-            modalidad_contratacion, telefono
+            modalidad_contratacion, telefono, ajustes_proximos_json
         } = empleado;
 
         return new Promise((resolve, reject) => {
@@ -576,14 +576,14 @@ async function setupIpcHandlers() {
                     nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
                     direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
                     categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?,
-                    modalidad_contratacion = ?, telefono = ?
+                    modalidad_contratacion = ?, telefono = ?, ajustes_proximos_json = ?
                 WHERE id = ?
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
-                modalidad_contratacion || 'Formal', telefono || null, id
+                modalidad_contratacion || 'Formal', telefono || null, ajustes_proximos_json || null, id
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });

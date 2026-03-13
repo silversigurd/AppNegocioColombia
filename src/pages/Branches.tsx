@@ -37,6 +37,7 @@ interface Empleado {
     fecha_egreso?: string;
     causal_egreso?: string;
     indemnizacion_json?: string;
+    ajustes_proximos_json?: string;
 }
 
 export default function Branches() {
@@ -60,6 +61,14 @@ export default function Branches() {
     const [showHistorial, setShowHistorial] = useState(false);
     const [cuilError, setCuilError] = useState('');
     const [viewingIndemnizacion, setViewingIndemnizacion] = useState<any>(null);
+
+    // Vacation State
+    const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
+    const [vacationData, setVacationData] = useState({
+        dias: 0,
+        periodo: new Date().getFullYear().toString(),
+        total_restantes: 0
+    });
 
     // Calcular indemnización según LCT y Ley Bases 2024
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
@@ -200,6 +209,14 @@ export default function Branches() {
     };
 
     const handleOpenForm = (emp: Empleado | null) => {
+        // Close other modals to prevent z-index blocking
+        setIsAdminOpen(false);
+        setIsPayrollOpen(false);
+        setIsVacationModalOpen(false);
+        setIsDesvinculacionOpen(false);
+        setViewingIndemnizacion(null);
+        setCuilError('');
+
         if (emp) {
             setFormData(emp);
         } else {
@@ -370,6 +387,7 @@ export default function Branches() {
                 indemnizacion_json: JSON.stringify(indemnizacion)
             });
             setIsDesvinculacionOpen(false);
+            setIsAdminOpen(false);
             setSelectedEmpleado(null);
             setIndemnizacion(null);
             loadEmpleados();
@@ -425,7 +443,8 @@ export default function Branches() {
         const antiguedad = basico * 0.01 * anios;
         const presentismo = (basico + antiguedad) * 0.0833;
 
-        const totalRemunerativo = basico + antiguedad + presentismo;
+        const totalRemunerativoBase = basico + antiguedad + presentismo;
+        const totalRemunerativo = totalRemunerativoBase;
 
         // Sumas No Remunerativas (Acuerdo Dic 2025 - Mar 2026)
         const sumaNoRem1 = 60000;
@@ -466,6 +485,58 @@ export default function Branches() {
             conceptos, totalBruto, totalRetenciones, totalNeto
         });
         setIsPayrollOpen(true);
+    };
+
+    const handleGenerarNotaCompensacion = () => {
+        if (!selectedEmpleado) return;
+        const emp = selectedEmpleado;
+        const doc = new jsPDF('p', 'pt', 'a4');
+        const hoy = new Date();
+        const dias = hoy.getDate();
+        const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const mes = meses[hoy.getMonth()];
+        const anio = hoy.getFullYear();
+
+        const valorDiaBruto = Number(selectedEmpleado.sueldo_basico) / 30;
+        const valorDiaNeto = valorDiaBruto * 0.805; // 19.5% standard deductions (11+3+3+2+0.5)
+        const montoStr = (valorDiaNeto * vacationData.dias).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+
+        doc.setFontSize(11);
+        doc.text(`La Plata, ${dias} de ${mes} de ${anio}`, 400, 60, { align: 'right' });
+
+        const margin = 50;
+        const startY = 150;
+        const lineHeight = 18;
+
+        doc.setFont('helvetica', 'normal');
+        let text = `Por medio de la presente, yo ${emp.nombre}, DNI ${emp.dni}, dejo constancia de que he solicitado a la empresa ${settings.businessName || 'BIO LABBCE S.R.L.'} la posibilidad de percibir una compensación económica de $${montoStr} a cambio de no gozar de ${vacationData.dias} días de licencia correspondientes al período ${vacationData.periodo}.`;
+
+        const splitText = doc.splitTextToSize(text, 500);
+        doc.text(splitText, margin, startY);
+
+        let nextY = startY + (splitText.length * lineHeight) + 20;
+
+        let text2 = `Asimismo, declaro que fui informado/a por la empresa de que, conforme a la Ley de Contrato de Trabajo (Art. 162 y 164), los días por licencia deben ser gozados y no pueden ser reemplazados por el pago, salvo en caso de extinción del vínculo laboral.`;
+        const splitText2 = doc.splitTextToSize(text2, 500);
+        doc.text(splitText2, margin, nextY);
+
+        nextY += (splitText2.length * lineHeight) + 20;
+
+        let text3 = `Firmo la presente dejando constancia de que mi solicitud fue voluntaria, que acepto el monto antes mencionado y que he sido notificado/a de la imposibilidad legal de acceder a ella originalmente.`;
+        const splitText3 = doc.splitTextToSize(text3, 500);
+        doc.text(splitText3, margin, nextY);
+
+        nextY += 100;
+
+        doc.text(`Firma del empleado`, margin, nextY);
+        doc.text(`Aclaración: ___________________________`, margin, nextY + 20);
+        doc.text(`DNI: ${emp.dni}`, margin, nextY + 40);
+
+        doc.text(`Firma del empleador`, 350, nextY);
+        doc.text(`Aclaración: ___________________________`, 350, nextY + 20);
+        doc.text(`Cargo: ___________________________`, 350, nextY + 40);
+
+        doc.save(`Compensacion_Economica_${emp.nombre.replace(/ /g, '_')}.pdf`);
     };
 
     const handleConfirmarLiquidacion = async () => {
@@ -795,6 +866,9 @@ export default function Branches() {
                                             <button onClick={handleGenerarRecibo} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
                                                 <AddIcon fontSize="small" /> Liquidar Periodo
                                             </button>
+                                            <button onClick={() => { setVacationData({ dias: 0, periodo: new Date().getFullYear().toString(), total_restantes: 0 }); setIsVacationModalOpen(true); }} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">
+                                                <ReceiptIcon fontSize="small" /> Compensación Económica
+                                            </button>
                                         </div>
 
                                         <div className="flex-1 flex flex-col items-center">
@@ -1111,6 +1185,63 @@ export default function Branches() {
                             <span>${Math.round(viewingIndemnizacion.total).toLocaleString('es-AR')}</span>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Compensación Económica Modal */}
+            {isVacationModalOpen && selectedEmpleado && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
+                        <div className="p-6 border-b border-amber-100 bg-amber-50 flex justify-between items-center text-amber-900 font-bold">
+                            <h2 className="text-xl flex items-center gap-2"><ReceiptIcon /> Compensación Económica</h2>
+                            <button onClick={() => setIsVacationModalOpen(false)} className="p-2 hover:bg-amber-100 rounded-full transition-colors text-amber-600"><CloseIcon /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Empleado</p>
+                                <p className="font-bold text-slate-800">{selectedEmpleado.nombre}</p>
+                                <p className="text-xs text-slate-500">Sueldo Básico: ${selectedEmpleado.sueldo_basico.toLocaleString('es-AR')}</p>
+                            </div>
+
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Días a Compensar</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold"
+                                        value={vacationData.dias}
+                                        onChange={e => setVacationData({ ...vacationData, dias: Number(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Período (Año)</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2 bg-slate-50 border rounded-xl"
+                                    value={vacationData.periodo}
+                                    onChange={e => setVacationData({ ...vacationData, periodo: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-amber-800">Monto Neto Calculado</span>
+                                    <span className="text-xl font-black text-amber-900">${((Number(selectedEmpleado.sueldo_basico) / 30) * 0.805 * vacationData.dias).toLocaleString('es-AR')}</span>
+                                </div>
+                                <p className="text-[10px] text-amber-600 mt-1 italic text-center">Cálculo: (Bruto / 30) - 19.5% de aportes.</p>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex flex-col gap-2">
+                            <button
+                                onClick={handleGenerarNotaCompensacion}
+                                className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors"
+                            >
+                                <PictureAsPdfIcon fontSize="small" /> Generar Nota de Solicitud (PDF)
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -87,7 +87,8 @@ async function initDb() {
       "obra_social TEXT", "fecha_ingreso TEXT", "categoria_cct TEXT", "sueldo_basico REAL",
       "jornada_laboral TEXT", "horas_parcial INTEGER DEFAULT 0", "contrato_filepath TEXT",
       "modalidad_contratacion TEXT DEFAULT 'Formal'", "estado TEXT DEFAULT 'Activo'",
-      "fecha_egreso TEXT", "causal_egreso TEXT", "telefono TEXT", "indemnizacion_json TEXT"
+      "fecha_egreso TEXT", "causal_egreso TEXT", "telefono TEXT", "indemnizacion_json TEXT",
+      "ajustes_proximos_json TEXT"
     ];
 
     for (const col of empleadosMig) {
