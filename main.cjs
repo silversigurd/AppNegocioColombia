@@ -1,5 +1,18 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+
+// ============================================================
+// CRITICAL: Set the app name and userData path BEFORE importing
+// any other module (especially db.cjs which reads app.getPath).
+// This isolates the Colombia DB from the Argentina app which
+// also uses Electron and would otherwise share %APPDATA%/my-desktop-app/
+// ============================================================
+app.setName('CommerceOS Pro Colombia');
+// This sets: %APPDATA%\CommerceOS Pro Colombia\ on Windows
+// argv/env overrides happen before setPath, so this is safe:
+const colombiaUserDataPath = path.join(app.getPath('appData'), 'CommerceOS Pro Colombia');
+app.setPath('userData', colombiaUserDataPath);
+
 const { setupIpcHandlers } = require('./src/backend/ipcHandlers.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';

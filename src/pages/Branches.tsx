@@ -14,6 +14,12 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { ipc } from '../utils/ipc';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { 
+    SMMLV_2026, AUX_TRANSPORTE_2026, TOPE_EXONERACION_EMPLEADOR, 
+    INDEM_BAJO_PRIMER_ANO, INDEM_BAJO_SIGUIENTES, INDEM_ALTO_PRIMER_ANO, INDEM_ALTO_SIGUIENTES, 
+    PERIODO_PRUEBA_MESES, PRESTACIONES, TOPE_AUX_TRANSPORTE, APORTES_EMPLEADO_2026,
+    getDivisorHoras, getValorHoraOrdinaria, RECARGOS_2026
+} from '../utils/colombiaConstants';
 
 interface Empleado {
     id?: number;
@@ -77,6 +83,7 @@ export default function Branches() {
         periodo: new Date().getFullYear().toString(),
         total_restantes: 0
     });
+    const [novedadesMes, setNovedadesMes] = useState({ heDiurnas: 0, heNocturnas: 0, recNocturno: 0, dominicales: 0 });
 
     // Calcular indemnización según LCT/Ley Bases (ARG) o CST (COL)
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
@@ -100,10 +107,10 @@ export default function Branches() {
             if (causal.includes('sin justa causa')) {
                 if (esIndefinido) {
                     let diasIndemnizacion = 0;
-                    if (basico < 13000000) { // Menos de 10 SMMLV (aprox)
-                        diasIndemnizacion = aniosTotales <= 1 ? 30 : 30 + (Math.floor(aniosTotales - 1) * 20);
+                    if (basico < TOPE_EXONERACION_EMPLEADOR) {
+                        diasIndemnizacion = aniosTotales <= 1 ? INDEM_BAJO_PRIMER_ANO : INDEM_BAJO_PRIMER_ANO + (Math.floor(aniosTotales - 1) * INDEM_BAJO_SIGUIENTES);
                     } else {
-                        diasIndemnizacion = aniosTotales <= 1 ? 20 : 20 + (Math.floor(aniosTotales - 1) * 15);
+                        diasIndemnizacion = aniosTotales <= 1 ? INDEM_ALTO_PRIMER_ANO : INDEM_ALTO_PRIMER_ANO + (Math.floor(aniosTotales - 1) * INDEM_ALTO_SIGUIENTES);
                     }
                     const montoIndem = (basico / 30) * diasIndemnizacion;
                     items.push({ concepto: 'Indemnización Despido Injusto (Art. 64 CST)', monto: montoIndem, detalle: `${diasIndemnizacion.toFixed(1)} días de salario` });
@@ -115,10 +122,10 @@ export default function Branches() {
 
             // Prestaciones Sociales Proporcionales (Liquidación de Ley)
             const mesesTrans = (totalDays % 365.25) / 30.5;
-            const prima = (basico * mesesTrans) / 12;
-            const cesantias = (basico * mesesTrans) / 12;
-            const intereses = (cesantias * 0.12 * mesesTrans) / 12;
-            const vacaciones = (basico * (totalDays % 365.25)) / 720;
+            const prima = (basico * mesesTrans) * PRESTACIONES.PRIMA_SERVICIOS;
+            const cesantias = (basico * mesesTrans) * PRESTACIONES.CESANTIAS;
+            const intereses = (cesantias * PRESTACIONES.INT_CESANTIAS * mesesTrans) / 12;
+            const vacaciones = (basico * (totalDays % 365.25)) / (1 / PRESTACIONES.VACACIONES);
 
             items.push({ concepto: 'Prima de Servicios Proporcional', monto: prima, detalle: 'Corte a la fecha de egreso' });
             items.push({ concepto: 'Cesantías Proporcionales', monto: cesantias, detalle: 'Base de 1 mes por año' });
@@ -469,8 +476,6 @@ export default function Branches() {
 
         if (settings.pais === 'Colombia') {
             // LÓGICA COLOMBIA 2026
-            const SMMLV_2026 = 1500000; // Valor estimado para 2026
-            const AUX_TRANSPORTE_2026 = 200000; // Valor estimado
             
             let conceptos: any[] = [];
             let totalRemunerativo = basico;
@@ -478,18 +483,39 @@ export default function Branches() {
 
             // Auxilio de Transporte (si devenga menos de 2 SMMLV)
             let totalNoRemunerativo = 0;
-            if (basico <= (SMMLV_2026 * 2)) {
+            if (basico <= TOPE_AUX_TRANSPORTE) {
                 totalNoRemunerativo += AUX_TRANSPORTE_2026;
                 conceptos.push({ tipo: 'NoRemunerativo', descripcion: 'Auxilio de Transporte', unidad: 'Legal', importe: AUX_TRANSPORTE_2026 });
             }
 
-            // Recargos (Simulados para el recibo base, en producción vendrían de novedades)
-            const recargoNocturno = 0; // 35%
-            const recargoDominical = 0; // 90%
+            // Novedades y Recargos (CST 2026)
+            const divisor = getDivisorHoras(ahora);
+            const valorHora = getValorHoraOrdinaria(basico, ahora);
             
-            // Retenciones (Salud 4%, Pensión 4%)
-            const salud = basico * 0.04;
-            const pension = basico * 0.04;
+            if (novedadesMes.recNocturno > 0) {
+                const montoRecNocturno = novedadesMes.recNocturno * valorHora * RECARGOS_2026.NOCTURNO;
+                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Recargo Nocturno', unidad: `${novedadesMes.recNocturno}h`, importe: montoRecNocturno });
+                totalRemunerativo += montoRecNocturno;
+            }
+            if (novedadesMes.heDiurnas > 0) {
+                const montoHED = novedadesMes.heDiurnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_DIURNA);
+                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Diurnas', unidad: `${novedadesMes.heDiurnas}h`, importe: montoHED });
+                totalRemunerativo += montoHED;
+            }
+            if (novedadesMes.heNocturnas > 0) {
+                const montoHEN = novedadesMes.heNocturnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_NOCTURNA);
+                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Nocturnas', unidad: `${novedadesMes.heNocturnas}h`, importe: montoHEN });
+                totalRemunerativo += montoHEN;
+            }
+            if (novedadesMes.dominicales > 0) {
+                const montoDominical = novedadesMes.dominicales * valorHora * (1 + RECARGOS_2026.DOMINICAL_ORDINARIO);
+                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Dominicales', unidad: `${novedadesMes.dominicales}h`, importe: montoDominical });
+                totalRemunerativo += montoDominical;
+            }
+            
+            // Retenciones (Salud 4%, Pensión 4%) sobre el total remunerativo (devengado gravable)
+            const salud = totalRemunerativo * APORTES_EMPLEADO_2026.SALUD;
+            const pension = totalRemunerativo * APORTES_EMPLEADO_2026.PENSION;
             conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Salud (4%)', unidad: '4%', importe: salud });
             conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Pensión (4%)', unidad: '4%', importe: pension });
 
@@ -582,7 +608,9 @@ export default function Branches() {
 
         let nextY = startY + (splitText.length * lineHeight) + 20;
 
-        let text2 = `Asimismo, declaro que fui informado/a por la empresa de que, conforme a la Ley de Contrato de Trabajo (Art. 162 y 164), los días por licencia deben ser gozados y no pueden ser reemplazados por el pago, salvo en caso de extinción del vínculo laboral.`;
+        let text2 = settings.pais === 'Colombia'
+            ? `Asimismo, declaro que fui informado/a por la empresa de que, conforme al Código Sustantivo del Trabajo (CST), los recargos y compensaciones económicas no salariales acordadas corresponden al pago sustitutivo de la licencia, siempre sujeto al ordenamiento y límites legales vigentes.`
+            : `Asimismo, declaro que fui informado/a por la empresa de que, conforme a la Ley de Contrato de Trabajo (Art. 162 y 164), los días por licencia deben ser gozados y no pueden ser reemplazados por el pago, salvo en caso de extinción del vínculo laboral.`;
         const splitText2 = doc.splitTextToSize(text2, 500);
         doc.text(splitText2, margin, nextY);
 
@@ -632,41 +660,51 @@ export default function Branches() {
 
     const generatePDF = (liq: any, emp: Empleado) => {
         const doc = new jsPDF('p', 'pt', 'a4');
+        const formatCurr = (val: number) => val.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { minimumFractionDigits: settings.pais === 'Colombia' ? 0 : 2 });
         const drawRecibo = (startY: number, title: string) => {
             doc.setFontSize(10);
-            doc.text(`Recibo de Sueldo - Ley 20.744 - Ejemplar: ${title}`, 40, startY + 20);
+            const tituloLey = settings.pais === 'Colombia' ? 'Nómina - Código Sustantivo del Trabajo' : 'Recibo de Sueldo - Ley 20.744';
+            doc.text(`${tituloLey} - Ejemplar: ${title}`, 40, startY + 20);
             doc.setFontSize(8);
-            doc.text(`Empresa Ejemplo S.A. | CUIT: 30-00000000-0 | Domicilio Ficticio 123`, 40, startY + 35);
-            doc.text(`Empleado: ${emp.nombre} | LEGAJO: ${emp.id} | CUIL: ${emp.cuil}`, 40, startY + 50);
-            doc.text(`Categoría: ${emp.categoria_cct} | Ingreso: ${emp.fecha_ingreso} | Periodo: ${liq.periodo}`, 40, startY + 65);
+            const identificadorEmpresa = settings.pais === 'Colombia' ? 'NIT: 900.000.000-0' : 'CUIT: 30-00000000-0';
+            doc.text(`${settings.businessName || 'Empresa Ejemplo S.A.'} | ${identificadorEmpresa} | Domicilio Ficticio 123`, 40, startY + 35);
+            const idEmpLabel = settings.pais === 'Colombia' ? `C.C./RUT: ${emp.cedula_ciudadania || emp.rut || ''}` : `CUIL: ${emp.cuil || ''}`;
+            doc.text(`Empleado: ${emp.nombre} | LEGAJO: ${emp.id} | ${idEmpLabel}`, 40, startY + 50);
+            doc.text(`Categoría: ${emp.categoria_cct || emp.cargo || ''} | Ingreso: ${emp.fecha_ingreso} | Periodo: ${liq.periodo}`, 40, startY + 65);
 
             const tableData = liq.conceptos.map((c: any) => [
                 c.descripcion,
                 c.unidad,
-                c.tipo === 'Remunerativo' ? `$${c.importe.toFixed(2)}` : '',
-                c.tipo === 'NoRemunerativo' ? `$${c.importe.toFixed(2)}` : '',
-                c.tipo === 'Retencion' ? `$${c.importe.toFixed(2)}` : ''
+                c.tipo === 'Remunerativo' ? `$${formatCurr(c.importe)}` : '',
+                c.tipo === 'NoRemunerativo' ? `$${formatCurr(c.importe)}` : '',
+                c.tipo === 'Retencion' ? `$${formatCurr(c.importe)}` : ''
             ]);
 
             autoTable(doc, {
                 startY: startY + 80,
-                head: [['Concepto', 'Unidad/Porc', 'Remunerativo', 'No Remunerativo', 'Retenciones']],
+                head: [['Concepto', 'Unidad/Porc', settings.pais === 'Colombia' ? 'Devengado' : 'Remunerativo', settings.pais === 'Colombia' ? 'Base/Otros' : 'No Remunerativo', 'Deducciones']],
                 body: tableData,
                 styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [79, 70, 229] }, // Indigo
+                headStyles: { fillColor: settings.pais === 'Colombia' ? [16, 185, 129] : [79, 70, 229] }, // Emerald vs Indigo
                 margin: { left: 40, right: 40 }
             });
 
             const finalY = (doc as any).lastAutoTable.finalY + 15;
             doc.setFontSize(9);
-            doc.text(`TOTAL BRUTO: $${liq.total_bruto.toFixed(2)}`, 40, finalY);
-            doc.text(`TOTAL RETENCIONES: $${liq.total_retenciones.toFixed(2)}`, 220, finalY);
-            doc.text(`NETO A COBRAR: $${liq.total_neto.toFixed(2)}`, 400, finalY);
+            doc.text(`TOTAL DEVENGADO: $${formatCurr(liq.total_bruto)}`, 40, finalY);
+            doc.text(`TOTAL DEDUCCIONES: $${formatCurr(liq.total_retenciones)}`, 220, finalY);
+            doc.text(`NETO A PAGAR: $${formatCurr(liq.total_neto)}`, 400, finalY);
 
             doc.setFontSize(7);
             doc.text(`Firma Empleador ......................................`, 80, finalY + 40);
             doc.text(`Firma Empleado ......................................`, 350, finalY + 40);
-            doc.text(`Art. 12 Ley 17250: Último depósito aportes mes ant.: Banco Nación. | No válido como recibo sin firma.`, 40, finalY + 60);
+            
+            if (settings.pais === 'Colombia') {
+                const cuneRandom = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                doc.text(`CUNE Sistema (Local): ${cuneRandom} | No válido como nómina electrónica DIAN.`, 40, finalY + 60);
+            } else {
+                doc.text(`Art. 12 Ley 17250: Último depósito aportes mes ant.: Banco Nación. | No válido como recibo sin firma.`, 40, finalY + 60);
+            }
         };
 
         // Draw Duplicate and Original
@@ -677,7 +715,7 @@ export default function Branches() {
         (doc as any).setLineDash([], 0);
         drawRecibo(450, 'TRABAJADOR');
 
-        doc.save(`ReciboSueldo_${emp.nombre.replace(/ /g, '_')}_${liq.periodo}.pdf`);
+        doc.save(`Nomina_${emp.nombre.replace(/ /g, '_')}_${liq.periodo}.pdf`);
     };
 
     return (
@@ -970,12 +1008,41 @@ export default function Branches() {
                                             </button>
                                         </div>
 
+                                        {settings.pais === 'Colombia' && (
+                                            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                                                <p className="text-xs font-bold text-emerald-800 uppercase mb-3">Novedades del Mes (Horas Extra y Recargos CST 2026)</p>
+                                                <p className="text-[10px] text-emerald-600 mb-2 font-mono">Divisor horas: {getDivisorHoras(new Date())} | Valor ordinario: $ {getValorHoraOrdinaria(Number(selectedEmpleado.sueldo_basico) || 0, new Date()).toLocaleString('es-CO', {maximumFractionDigits:0})}</p>
+                                                <div className="grid grid-cols-4 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">Rec. Nocturno (35%)</label>
+                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
+                                                            value={novedadesMes.recNocturno} onChange={e => setNovedadesMes({...novedadesMes, recNocturno: Number(e.target.value)})} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">H.E. Diurna (25%)</label>
+                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
+                                                            value={novedadesMes.heDiurnas} onChange={e => setNovedadesMes({...novedadesMes, heDiurnas: Number(e.target.value)})} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">H.E. Nocturna (75%)</label>
+                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
+                                                            value={novedadesMes.heNocturnas} onChange={e => setNovedadesMes({...novedadesMes, heNocturnas: Number(e.target.value)})} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">Dominical (90%)</label>
+                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
+                                                            value={novedadesMes.dominicales} onChange={e => setNovedadesMes({...novedadesMes, dominicales: Number(e.target.value)})} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="flex-1 flex flex-col items-center">
                                             {liquidaciones.length === 0 ? (
                                                 <div className="flex-1 w-full flex flex-col justify-center items-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl p-8 text-center bg-slate-50">
                                                     <ReceiptIcon sx={{ fontSize: 64, opacity: 0.2, marginBottom: '1rem' }} />
                                                     <p className="font-bold text-lg mb-1 hidden sm:block">Aún no hay recibos generados</p>
-                                                    <p className="text-sm">Liquida el mes actual para generar el recibo en formato LCT.</p>
+                                                    <p className="text-sm">Liquida el mes actual para generar el recibo en formato {settings.pais === 'Colombia' ? 'CST' : 'LCT'}.</p>
                                                 </div>
                                             ) : (
                                                 <div className="w-full flex flex-col gap-3">
@@ -1064,7 +1131,11 @@ export default function Branches() {
                         <div className="p-6 overflow-y-auto flex-1 space-y-5">
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 text-sm">
                                 ⚠️ <strong>Historial Preservado:</strong> El empleado pasará al Historial de Bajas conservando datos y recibos. <br />
-                                ⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
+                                {settings.pais === 'Colombia' ? (
+                                    <>⚖️ <strong>CST 2026:</strong> Cálculo estimativo basado en el Art. 64 (Indemnización). Verificable mediante planillas base.</>
+                                ) : (
+                                    <>⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.</>
+                                )}
                             </div>
 
                             <form id="desvincularForm" onSubmit={handleConfirmDesvinculacion} className="grid grid-cols-2 gap-4">
@@ -1100,7 +1171,7 @@ export default function Branches() {
                                 <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
                                     <div className="bg-slate-100 px-4 py-2.5 flex items-center gap-2">
                                         <ReceiptIcon className="text-rose-500" fontSize="small" />
-                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final Estimada (LCT) — {indemnizacion.anios} años de servicio</h4>
+                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final Estimada ({settings.pais === 'Colombia' ? 'CST' : 'LCT'}) — {indemnizacion.anios} años de servicio</h4>
                                     </div>
                                     <table className="w-full text-sm">
                                         <thead>
@@ -1126,7 +1197,7 @@ export default function Branches() {
                                             <span className="text-xl font-black">${Math.round(indemnizacion.total).toLocaleString('es-AR')}</span>
                                         </div>
                                     )}
-                                    <p className="text-[10px] text-slate-400 px-4 py-2">* Cálculo orientativo basado en art. 231, 232, 241, 242, 245 LCT. No incluye retenciones o aportes patronales. Verificar con contador previo al pago.</p>
+                                    <p className="text-[10px] text-slate-400 px-4 py-2">* Cálculo orientativo basado en {settings.pais === 'Colombia' ? 'CST Art. 64' : 'art. 231, 232, 241, 242, 245 LCT'}. No incluye retenciones o aportes patronales. Verificar con contador previo al pago.</p>
                                 </div>
                             )}
                         </div>

@@ -271,21 +271,47 @@ export default function Finance() {
                                     <span>Subtotal</span>
                                     <span>{formatCurrency(selectedTicketData.subtotal)}</span>
                                 </div>
-                                <div className="flex justify-between text-xs font-bold text-slate-500">
-                                    <span>{settings.pais === 'Colombia' ? 'IVA (19%)' : 'IVA / Impuestos'}</span>
-                                    <span>{formatCurrency(selectedTicketData.impuestos)}</span>
-                                </div>
-                                {settings.pais === 'Colombia' && (
+                                {settings.pais === 'Colombia' ? (
                                     <>
-                                        <div className="flex justify-between text-[10px] font-bold text-slate-400 italic">
+                                        {(selectedTicketData.iva_19 || 0) > 0 && (
+                                            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                                                <span>IVA (19%)</span>
+                                                <span>{formatCurrency(selectedTicketData.iva_19)}</span>
+                                            </div>
+                                        )}
+                                        {(selectedTicketData.iva_5 || 0) > 0 && (
+                                            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                                                <span>IVA (5%)</span>
+                                                <span>{formatCurrency(selectedTicketData.iva_5)}</span>
+                                            </div>
+                                        )}
+                                        {(selectedTicketData.ipoc || 0) > 0 && (
+                                            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                                                <span>Impoconsumo (8%)</span>
+                                                <span>{formatCurrency(selectedTicketData.ipoc)}</span>
+                                            </div>
+                                        )}
+                                        {(selectedTicketData.imp_saludable || 0) > 0 && (
+                                            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                                                <span>Imp. Saludable</span>
+                                                <span>{formatCurrency(selectedTicketData.imp_saludable)}</span>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between text-[10px] font-bold text-slate-400 italic mt-2 border-t border-slate-100 pt-1">
                                             <span>ReteFuente (Est. 2.5%)</span>
                                             <span>-{formatCurrency(selectedTicketData.total * 0.025)}</span>
                                         </div>
                                         <div className="flex justify-between text-[10px] font-bold text-slate-400 italic">
-                                            <span>ICA (Est. 11.04/1000)</span>
-                                            <span>-{formatCurrency(selectedTicketData.total * 0.01104)}</span>
+                                            <span>ICA (Est. {settings.tasaICA || 11.04}/1000)</span>
+                                            <span>-{formatCurrency(selectedTicketData.total * ((settings.tasaICA || 11.04) / 1000))}</span>
                                         </div>
                                     </>
+                                ) : (
+                                    <div className="flex justify-between text-xs font-bold text-slate-500">
+                                        <span>IVA / Impuestos</span>
+                                        <span>{formatCurrency(selectedTicketData.impuestos)}</span>
+                                    </div>
                                 )}
                                 <div className="flex justify-between text-lg font-black text-slate-800 pt-2 border-t border-slate-200">
                                     <span>TOTAL</span>

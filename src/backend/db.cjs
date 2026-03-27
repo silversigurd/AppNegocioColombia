@@ -128,8 +128,23 @@ async function initDb() {
       nombre TEXT NOT NULL,
       telefono TEXT,
       email TEXT,
-      direccion TEXT
+      direccion TEXT,
+      nit_cedula TEXT,
+      eps TEXT,
+      fondo_pensiones TEXT,
+      arl TEXT,
+      autoriza_datos INTEGER DEFAULT 0,
+      fecha_autorizacion TEXT,
+      datos_suprimidos INTEGER DEFAULT 0
     )`);
+
+    const clientMig = [
+      "eps TEXT", "fondo_pensiones TEXT", "arl TEXT"
+    ];
+    for (const col of clientMig) {
+      await dbRun(`ALTER TABLE Clientes ADD COLUMN ${col}`).catch(() => { });
+    }
+
 
     // 4. Proveedores
     await dbRun(`CREATE TABLE IF NOT EXISTS Proveedores (
@@ -197,6 +212,9 @@ async function initDb() {
     await dbRun(`ALTER TABLE Productos ADD COLUMN iva_alicuota REAL DEFAULT 21`).catch(() => { });
     await dbRun(`ALTER TABLE Productos ADD COLUMN tasa_internos REAL DEFAULT 0`).catch(() => { });
     await dbRun(`UPDATE Productos SET iva_alicuota = 21 WHERE iva_alicuota IS NULL`);
+    // Colombia 2026: Tipo de impuesto por producto (IVA_19, IVA_5, EXENTO, EXCLUIDO, IPOC_8, SALUDABLE_BEBIDA, SALUDABLE_ULTRAPROCESADO)
+    await dbRun(`ALTER TABLE Productos ADD COLUMN tipo_impuesto_co TEXT DEFAULT 'IVA_19'`).catch(() => { });
+    await dbRun(`ALTER TABLE Productos ADD COLUMN es_producto_saludable INTEGER DEFAULT 0`).catch(() => { });
 
     // 7. Inventario
     await dbRun(`CREATE TABLE IF NOT EXISTS Inventario (
@@ -234,7 +252,9 @@ async function initDb() {
 
     // 4. Proveedores - Colombia 2026 Fields
     const colombiaProvFields = [
-      "nit TEXT", "responsable_iva BOOLEAN DEFAULT 1"
+      "nit TEXT", "responsable_iva BOOLEAN DEFAULT 1",
+      "responsabilidad_tributaria TEXT DEFAULT 'R-99-PN'", 
+      "codigo_postal TEXT", "email_facturacion TEXT", "codigo_ciiu TEXT"
     ];
     for (const col of colombiaProvFields) {
       await dbRun(`ALTER TABLE Proveedores ADD COLUMN ${col}`).catch(() => { });
@@ -277,6 +297,14 @@ async function initDb() {
     await dbRun(`ALTER TABLE Ventas ADD COLUMN impuestos_internos REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN cliente_identificacion TEXT`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN regimen_transparencia BOOLEAN DEFAULT 0`).catch(() => { });
+    // Colombia 2026: Campos obligatorios Anexo Técnico 1.9
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN medio_pago TEXT DEFAULT 'EFECTIVO'`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN cude_local TEXT`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN es_b2b INTEGER DEFAULT 0`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN iva_19 REAL DEFAULT 0`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN iva_5 REAL DEFAULT 0`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN ipoc REAL DEFAULT 0`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN imp_saludable REAL DEFAULT 0`).catch(() => { });
 
     // 9. DetallesVenta
     await dbRun(`CREATE TABLE IF NOT EXISTS DetallesVenta (
@@ -319,6 +347,17 @@ async function initDb() {
     )`);
     await dbRun(`ALTER TABLE Pedidos ADD COLUMN percepciones_recibidas REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Pedidos ADD COLUMN retenciones_aplicadas REAL DEFAULT 0`).catch(() => { });
+    
+    // Colombia 2026 - Pedidos DIAN Eventos
+    const colombiaPedidosFields = [
+      "cufe TEXT", "fecha_emision_fe TEXT",
+      "evento_acuse_recibo BOOLEAN DEFAULT 0",
+      "evento_recibo_bienes BOOLEAN DEFAULT 0", 
+      "evento_aceptacion_expresa BOOLEAN DEFAULT 0"
+    ];
+    for (const col of colombiaPedidosFields) {
+      await dbRun(`ALTER TABLE Pedidos ADD COLUMN ${col}`).catch(() => { });
+    }
 
     // 12. DetallesPedido
     await dbRun(`CREATE TABLE IF NOT EXISTS DetallesPedido (

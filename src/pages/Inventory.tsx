@@ -30,6 +30,7 @@ interface Product {
     iva_alicuota?: number;
     tasa_internos?: number;
     categoria_nombre?: string;
+    tipo_impuesto_co?: string;
 }
 
 interface Category {
@@ -57,12 +58,21 @@ export default function Inventory() {
         categoria_id: '',
         stock: 0,
         iva_alicuota: 21,
-        tasa_internos: 0
+        tasa_internos: 0,
+        tipo_impuesto_co: 'IVA_19'
     });
 
     // Category Management State
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+
+    // Delete Confirmation State
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [productToDelete, setProductToDelete] = useState<number | null>(null);
+
+    // Category Delete Confirm State
+    const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null);
+    const [deleteCatConfirmOpen, setDeleteCatConfirmOpen] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -99,7 +109,8 @@ export default function Inventory() {
                 categoria_id: '',
                 stock: 0,
                 iva_alicuota: 21,
-                tasa_internos: 0
+                tasa_internos: 0,
+                tipo_impuesto_co: 'IVA_19'
             });
         }
         setIsModalOpen(true);
@@ -128,13 +139,21 @@ export default function Inventory() {
         }
     };
 
-    const handleDelete = async (id: number) => {
-        if (window.confirm('¿Está seguro de eliminar este producto?')) {
+    const confirmDelete = (id: number) => {
+        setProductToDelete(id);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (productToDelete !== null) {
             try {
-                await ipc.invoke('delete-producto', id);
+                await ipc.invoke('delete-producto', productToDelete);
                 loadData();
             } catch (error) {
                 console.error('Error deleting product:', error);
+            } finally {
+                setDeleteConfirmOpen(false);
+                setProductToDelete(null);
             }
         }
     };
@@ -153,18 +172,26 @@ export default function Inventory() {
         }
     };
 
-    const handleDeleteCategory = async (id: number) => {
-        if (window.confirm('¿Está seguro de eliminar esta categoría? Los productos asociados pasarán a "General".')) {
+    const confirmDeleteCategory = (id: number) => {
+        setCategoryToDelete(id);
+        setDeleteCatConfirmOpen(true);
+    };
+
+    const handleDeleteCategory = async () => {
+        if (categoryToDelete !== null) {
             try {
-                await ipc.invoke('delete-categoria', id);
-                setCategories(categories.filter(c => c.id !== id));
-                if (formData.categoria_id === id) {
+                await ipc.invoke('delete-categoria', categoryToDelete);
+                setCategories(categories.filter(c => c.id !== categoryToDelete));
+                if (formData.categoria_id === categoryToDelete) {
                     setFormData(prev => ({ ...prev, categoria_id: '' }));
                 }
                 loadData(); // To refresh category names in the list
             } catch (error) {
                 console.error('Error deleting category:', error);
                 alert('Error al eliminar la categoría.');
+            } finally {
+                setDeleteCatConfirmOpen(false);
+                setCategoryToDelete(null);
             }
         }
     };
@@ -366,7 +393,7 @@ export default function Inventory() {
                                                     <EditIcon fontSize="small" />
                                                 </button>
                                                 <button
-                                                    onClick={() => product.id && handleDelete(product.id)}
+                                                    onClick={() => product.id && confirmDelete(product.id)}
                                                     className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-rose-500 flex items-center justify-center hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all shadow-sm active:scale-90"
                                                 >
                                                     <DeleteIcon fontSize="small" />
@@ -480,7 +507,8 @@ export default function Inventory() {
                                 </div>
                             </div>
 
-                            {settings.arcaCompliance2026 && (
+                            {/* Argentina: ARCA Compliance */}
+                            {settings.pais === 'Argentina' && settings.arcaCompliance2026 && (
                                 <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100 grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-primary-600 mb-1 ml-1">Alícuota IVA</label>
@@ -507,6 +535,35 @@ export default function Inventory() {
                                             placeholder="0"
                                         />
                                     </div>
+                                </div>
+                            )}
+                            {/* Colombia: DIAN Tax Type per Product */}
+                            {settings.pais === 'Colombia' && (
+                                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-3">
+                                    <label className="block text-[11px] font-black uppercase text-amber-700 mb-1 ml-1">🇨🇴 Tipo de Impuesto DIAN (Colombia 2026)</label>
+                                    <select
+                                        className="w-full px-4 py-3 bg-white border border-amber-200 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 transition-all font-bold text-slate-700 appearance-none"
+                                        value={formData.tipo_impuesto_co || 'IVA_19'}
+                                        onChange={(e) => setFormData({ ...formData, tipo_impuesto_co: e.target.value })}
+                                    >
+                                        <option value="IVA_19">IVA 19% — Tarifa general</option>
+                                        <option value="IVA_5">IVA 5% — Tarifa diferencial</option>
+                                        <option value="EXENTO">Exento de IVA (0%) — exportaciones, carnes, verd.</option>
+                                        <option value="EXCLUIDO">Excluido de IVA — servicios educativos, transporte</option>
+                                        <option value="IPOC_8">IPOC 8% — Comidas preparadas (cafetería/restaurante)</option>
+                                        <option value="SALUDABLE_BEBIDA">Imp. Saludable — Bebida Azucarada</option>
+                                        <option value="SALUDABLE_ULTRAPROCESADO">Imp. Saludable — Ultraprocesado</option>
+                                    </select>
+                                    {(formData.tipo_impuesto_co === 'IPOC_8') && (
+                                        <p className="text-[10px] text-amber-700 bg-amber-100 px-3 py-2 rounded-xl font-semibold">
+                                            ⚠️ IPOC y IVA son excluyentes. Este producto NO cobrará IVA adicional.
+                                        </p>
+                                    )}
+                                    {(formData.tipo_impuesto_co === 'EXCLUIDO' || formData.tipo_impuesto_co === 'EXENTO') && (
+                                        <p className="text-[10px] text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl font-semibold">
+                                            ✓ Este producto no genera IVA en el tiquete POS.
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
@@ -568,7 +625,7 @@ export default function Inventory() {
                                         <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group hover:border-primary-200 transition-colors">
                                             <span className="font-bold text-slate-700">{cat.nombre}</span>
                                             <button
-                                                onClick={() => handleDeleteCategory(cat.id)}
+                                                onClick={() => confirmDeleteCategory(cat.id)}
                                                 className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                                 title="Eliminar categoría"
                                             >
@@ -580,10 +637,73 @@ export default function Inventory() {
                             </div>
 
                             <button
-                                onClick={() => setIsCategoryModalOpen(false)}
-                                className="w-full mt-4 px-6 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+                                                onClick={() => setIsCategoryModalOpen(false)}
+                                                className="w-full mt-4 px-6 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+                                            >
+                                                Cerrar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmOpen && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 p-6 text-center">
+                        <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <DeleteIcon fontSize="large" />
+                        </div>
+                        <h2 className="text-xl font-bold mb-2">¿Eliminar Producto?</h2>
+                        <p className="text-slate-500 text-sm mb-6">
+                            Esta acción no se puede deshacer. El producto será removido permanentemente del inventario.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setDeleteConfirmOpen(false);
+                                    setProductToDelete(null);
+                                }}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
                             >
-                                Cerrar
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all"
+                            >
+                                Sí, eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Category Delete Confirmation Modal */}
+            {deleteCatConfirmOpen && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 p-6 text-center">
+                        <div className="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <DeleteIcon fontSize="large" />
+                        </div>
+                        <h2 className="text-xl font-bold mb-2">¿Eliminar Categoría?</h2>
+                        <p className="text-slate-500 text-sm mb-6">
+                            Los productos que pertenezcan a esta categoría pasarán a ser parte de la categoría "General".
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setDeleteCatConfirmOpen(false);
+                                    setCategoryToDelete(null);
+                                }}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeleteCategory}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/30 transition-all"
+                            >
+                                Sí, eliminar
                             </button>
                         </div>
                     </div>

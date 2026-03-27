@@ -11,7 +11,7 @@ import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import PersonIcon from '@mui/icons-material/Person';
-// Removed duplicate import
+import { LIMITE_IDENTIFICACION_COMPRADOR_COP } from '../utils/colombiaConstants';
 
 type Product = {
     id: number,
@@ -20,7 +20,9 @@ type Product = {
     precio_venta: number,
     stock: number,
     iva_alicuota?: number,
-    tasa_internos?: number
+    tasa_internos?: number,
+    tipo_impuesto_co?: string,
+    es_producto_saludable?: number
 };
 type CartItem = Product & { quantity: number };
 
@@ -126,13 +128,37 @@ export default function POS() {
         cart.forEach(item => {
             const itemTotal = item.precio_venta * item.quantity;
             if (settings.pais === 'Colombia') {
-                // Colombia: IVA is typically 19%, 5% or 0%. Assuming default 19% for now.
-                const ivaRate = 0.19; 
-                const neto = itemTotal / (1 + ivaRate);
-                const iva = itemTotal - neto;
+                const tipo = item.tipo_impuesto_co || 'IVA_19';
+                let ivaRate = 0;
+                let ipocRate = 0;
+                let impSaludableRate = 0;
+
+                if (tipo === 'IVA_19') ivaRate = 0.19;
+                else if (tipo === 'IVA_5') ivaRate = 0.05;
+                else if (tipo === 'IPOC_8') ipocRate = 0.08;
+
+                if (item.es_producto_saludable) {
+                    impSaludableRate = 0.20; // 20% bebidas/ultraprocesados
+                }
+
+                // If IPOC is active and the place has a cafeteria, it voids IVA.
+                if (settings.tieneCafeteria && tipo === 'IPOC_8') {
+                    ivaRate = 0; 
+                }
+
+                // Si es No Responsable de IVA, la tarifa visible de IVA es 0 (precio final = precio sugerido)
+                if (!settings.esResponsableIVA) {
+                    ivaRate = 0;
+                }
+
+                const totalTaxes = ivaRate + ipocRate + impSaludableRate;
+                const neto = itemTotal / (1 + totalTaxes);
+                const iva = neto * ivaRate;
+                const internos = neto * (ipocRate + impSaludableRate); // IPOC and Saludable handled together here
                 
                 totalNeto += neto;
                 totalIVA += iva;
+                totalInternos += internos;
                 finalTotal += itemTotal;
             } else if (settings.arcaCompliance2026) {
                 // Argentina ARCA
@@ -170,10 +196,9 @@ export default function POS() {
 
         // Validation for large sales
         if (settings.pais === 'Colombia') {
-            // DIAN: Large sales should be identified.
-            // Simplified: If > 2.000.000 COP, notify or require.
-            if (total > 2000000 && !clienteIden) {
-                alert('Ventas superiores a $2.000.000 requieren identificación del comprador para cumplimiento DIAN.');
+            // DIAN: 100 UVT limit for anonymous buyers
+            if (total > LIMITE_IDENTIFICACION_COMPRADOR_COP && !clienteIden) {
+                alert(`Ventas superiores a 100 UVT ($${LIMITE_IDENTIFICACION_COMPRADOR_COP.toLocaleString('es-CO')}) requieren identificación del comprador para cumplimiento DIAN.`);
                 return;
             }
         } else if (settings.arcaCompliance2026 && total > 10000000 && !clienteIden) {

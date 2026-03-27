@@ -18,16 +18,19 @@ type Proveedor = {
     id?: number;
     nombre: string;
     nombre_fantasia: string;
-    cuit: string;
-    condicion_iva: string;
-    condicion_iibb: string;
+    nit: string;
+    responsabilidad_tributaria: string;
+    responsable_iva: boolean;
     direccion: string;
+    codigo_postal: string;
     email_compras: string;
     email_pagos: string;
+    email_facturacion: string;
     telefono: string;
     plazo_pago: number;
     cbu: string;
     rubro: string;
+    codigo_ciiu: string;
     saldo_actual: number;
     // --- V2 Fields ---
     preventista_nombre: string;
@@ -65,42 +68,55 @@ type Pedido = {
     retenciones_aplicadas?: number;
     pagado: boolean;
     items?: DetallePedido[];
+    // --- Colombia DIAN Fields ---
+    cufe?: string;
+    fecha_emision_fe?: string;
+    evento_acuse_recibo?: boolean;
+    evento_recibo_bienes?: boolean;
+    evento_aceptacion_expresa?: boolean;
 };
 
-const CONDICIONES_IVA = ['Responsable Inscripto', 'Monotributista', 'Exento', 'Consumidor Final'];
-const CONDICIONES_IIBB = ['Local', 'Convenio Multilateral', 'Exento', 'No Inscripto'];
+const RESPONSABILIDADES_DIAN = [
+    { code: 'O-13', label: 'Gran Contribuyente' },
+    { code: 'O-15', label: 'Autorretenedor' },
+    { code: 'O-23', label: 'Agente de retención IVA' },
+    { code: 'O-47', label: 'Régimen Simple de Tributación' },
+    { code: 'R-99-PN', label: 'No Responsable (Persona Natural)' },
+];
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'No Visitador'];
-const MONEDAS = ['ARS', 'USD'];
-
-// Validador de CUIT Argentino (Módulo 11)
-function validarCUIT(cuit: string): boolean {
-    if (!cuit) return false;
-    cuit = cuit.replace(/-/g, "");
-    if (cuit.length !== 11 || !/^\d+$/.test(cuit)) return false;
-
-    const factores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-    let suma = 0;
-
-    for (let i = 0; i < 10; i++) {
-        suma += parseInt(cuit[i], 10) * factores[i];
-    }
-
-    let control = 11 - (suma % 11);
-    if (control === 11) control = 0;
-    if (control === 10) control = 9;
-
-    return control === parseInt(cuit[10], 10);
-}
+const MONEDAS = ['COP', 'USD'];
 
 const emptyFormData: Proveedor = {
-    nombre: '', nombre_fantasia: '', cuit: '',
-    condicion_iva: 'Responsable Inscripto', condicion_iibb: 'Local',
-    direccion: '', email_compras: '', email_pagos: '',
-    telefono: '', plazo_pago: 0, cbu: '', rubro: '', saldo_actual: 0,
+    nombre: '', nombre_fantasia: '', nit: '',
+    responsabilidad_tributaria: 'R-99-PN', responsable_iva: false,
+    direccion: '', codigo_postal: '', email_compras: '', email_pagos: '', email_facturacion: '',
+    telefono: '', plazo_pago: 0, cbu: '', rubro: '', codigo_ciiu: '', saldo_actual: 0,
     preventista_nombre: '', preventista_telefono: '', dia_visita: 'No Visitador', dia_entrega: 'No Visitador',
-    limite_credito: 0, minimo_compra: 0, moneda_compra: 'ARS',
+    limite_credito: 0, minimo_compra: 0, moneda_compra: 'COP',
     retencion_ganancias: 0, retencion_iibb: 0, vencimiento_certificado_exencion: '', saldo_envases: 0
 };
+
+// Validador de NIT Colombiano (Módulo 11)
+function validarNIT(nit: string): boolean {
+    if (!nit) return false;
+    const fullNit = nit.replace(/\D/g, "");
+    if (fullNit.length < 5 || fullNit.length > 15) return false;
+
+    // Si el usuario ingresó el dígito de verificación (ej: 9001234567)
+    // El último dígito es el DV.
+    const nitBase = fullNit.slice(0, -1);
+    const dvIngresado = parseInt(fullNit.slice(-1), 10);
+
+    const factores = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+    let suma = 0;
+    for (let i = 0; i < nitBase.length; i++) {
+        suma += parseInt(nitBase[nitBase.length - 1 - i], 10) * factores[i];
+    }
+    const residuo = suma % 11;
+    const dvCalculado = residuo > 1 ? 11 - residuo : residuo;
+
+    return dvCalculado === dvIngresado;
+}
 
 export default function Providers() {
     const { settings } = useSettings();
@@ -194,10 +210,8 @@ export default function Providers() {
             return alert('Al menos debes ingresar un Nombre o Razón Social.');
         }
 
-        // Ya no impedimos guardar si el CUIT es erroneo, 
-        // solo le mostramos el texto en rojo por si lo quieren arreglar.
-        if (formData.cuit && !validarCUIT(formData.cuit)) {
-            setCuitError('El CUIT ingresado no pasa el Módulo 11 (Guardado sin restricción).');
+        if (formData.nit && !validarNIT(formData.nit)) {
+            setCuitError('El NIT ingresado no parece válido según el Dígito de Verificación.');
         } else {
             setCuitError('');
         }
@@ -272,6 +286,25 @@ export default function Providers() {
         }
     };
 
+    const handleUpdateDianEvents = async (pedido: Pedido, eventField: string, val: boolean) => {
+        const nuevosEventos = {
+            evento_acuse_recibo: pedido.evento_acuse_recibo,
+            evento_recibo_bienes: pedido.evento_recibo_bienes,
+            evento_aceptacion_expresa: pedido.evento_aceptacion_expresa,
+            [eventField]: val
+        };
+
+        try {
+            await ipc.invoke('update-pedido-dian-events', pedido.id, nuevosEventos);
+            // Reload list
+            const pedidos = await ipc.invoke('get-pedidos-por-proveedor', activeProveedorId, 1);
+            setProveedorPedidos(pedidos);
+        } catch (err) {
+            console.error(err);
+            alert('Error actualizando eventos DIAN');
+        }
+    };
+
     const handleAgregarItemPedido = (productId: string) => {
         if (!productId) return;
         const prod = productosDisponibles.find(p => p.id === parseInt(productId));
@@ -311,12 +344,18 @@ export default function Providers() {
         const totalPedido = nuevoPedidoItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0);
 
         try {
+            // Generamos un CUFE local para control interno
+            const cufe = `CUFE-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+            const fechaEmision = new Date().toISOString();
+
             await ipc.invoke('save-pedido', {
                 proveedor_id: activeProveedorId,
                 sucursal_id: 1,
                 total: totalPedido + percepcionesRec - retencionesApl,
                 percepciones_recibidas: percepcionesRec,
                 retenciones_aplicadas: retencionesApl,
+                cufe: cufe,
+                fecha_emision_fe: fechaEmision,
                 items: nuevoPedidoItems
             });
 
@@ -339,7 +378,7 @@ export default function Providers() {
     const filteredProveedores = proveedores.filter(p =>
         p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.nombre_fantasia && p.nombre_fantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.cuit && p.cuit.includes(searchTerm))
+        (p.nit && p.nit.includes(searchTerm))
     );
 
     return (
@@ -364,7 +403,7 @@ export default function Providers() {
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fontSize="small" />
                     <input
                         type="text"
-                        placeholder="Buscar por razón social, nombre fantasía o CUIT..."
+                        placeholder="Buscar por razón social, nombre fantasía o NIT..."
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-slate-700 placeholder:text-slate-400"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -403,7 +442,7 @@ export default function Providers() {
                                         <h3 className="font-bold text-slate-800 line-clamp-1" title={p.nombre}>{p.nombre}</h3>
                                         {p.nombre_fantasia && <p className="text-xs font-semibold text-slate-500 line-clamp-1">{p.nombre_fantasia}</p>}
                                         <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold mt-1 inline-block border border-slate-200">
-                                            CUIT: {p.cuit || 'N/A'}
+                                            NIT: {p.nit || 'N/A'}
                                         </span>
                                     </div>
                                 </div>
@@ -432,8 +471,8 @@ export default function Providers() {
 
                                 <div className="pt-4 border-t border-slate-100 flex justify-between items-end">
                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Condición</p>
-                                        <p className="text-xs font-semibold text-slate-700">{p.condicion_iva}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Responsabilidad</p>
+                                        <p className="text-xs font-semibold text-slate-700">{p.responsabilidad_tributaria}</p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 flex items-center gap-1 justify-end">
@@ -498,13 +537,11 @@ export default function Providers() {
                                                         value={formData.nombre_fantasia} onChange={e => setFormData({ ...formData, nombre_fantasia: e.target.value })} />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-slate-600 mb-1">CUIT (11 dígitos, Validación ARCA)</label>
-                                                    <input type="text" maxLength={13} placeholder="XX-XXXXXXXX-X" className={`w-full bg-slate-50 border ${cuitError ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'} rounded-xl px-4 py-2.5 outline-none transition-colors text-sm font-mono`}
-                                                        value={formData.cuit} onChange={e => {
-                                                            let raw = e.target.value.replace(/[^\d]/g, '');
-                                                            if (raw.length > 2) raw = raw.slice(0, 2) + '-' + raw.slice(2);
-                                                            if (raw.length > 11) raw = raw.slice(0, 11) + '-' + raw.slice(11);
-                                                            setFormData({ ...formData, cuit: raw });
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1">NIT (Con DV, ej: 9001234567)</label>
+                                                    <input type="text" maxLength={15} placeholder="9000000000" className={`w-full bg-slate-50 border ${cuitError ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'} rounded-xl px-4 py-2.5 outline-none transition-colors text-sm font-mono`}
+                                                        value={formData.nit} onChange={e => {
+                                                            const val = e.target.value.replace(/[^\d]/g, '');
+                                                            setFormData({ ...formData, nit: val });
                                                             if (cuitError) setCuitError('');
                                                         }} />
                                                     {cuitError && <p className="text-rose-500 text-xs font-bold mt-1">{cuitError}</p>}
@@ -512,18 +549,18 @@ export default function Providers() {
                                             </div>
                                             <div className="flex gap-4">
                                                 <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Condición IVA</label>
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Responsabilidad DIAN</label>
                                                     <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 text-sm"
-                                                        value={formData.condicion_iva} onChange={e => setFormData({ ...formData, condicion_iva: e.target.value })}>
-                                                        {CONDICIONES_IVA.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        value={formData.responsabilidad_tributaria} onChange={e => setFormData({ ...formData, responsabilidad_tributaria: e.target.value })}>
+                                                        {RESPONSABILIDADES_DIAN.map(r => <option key={r.code} value={r.code}>{r.label} ({r.code})</option>)}
                                                     </select>
                                                 </div>
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Condición IIBB</label>
-                                                    <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 text-sm"
-                                                        value={formData.condicion_iibb} onChange={e => setFormData({ ...formData, condicion_iibb: e.target.value })}>
-                                                        {CONDICIONES_IIBB.map(c => <option key={c} value={c}>{c}</option>)}
-                                                    </select>
+                                                <div className="flex-1 flex flex-col justify-center">
+                                                    <label className="flex items-center gap-2 cursor-pointer mt-4">
+                                                        <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded" 
+                                                            checked={formData.responsable_iva} onChange={e => setFormData({...formData, responsable_iva: e.target.checked})} />
+                                                        <span className="text-xs font-bold text-slate-600">Responsable de IVA</span>
+                                                    </label>
                                                 </div>
                                             </div>
                                         </div>
@@ -573,6 +610,18 @@ export default function Providers() {
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Teléfono Principal</label>
                                                     <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
                                                         value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Código Postal</label>
+                                                    <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
+                                                        value={formData.codigo_postal} onChange={e => setFormData({ ...formData, codigo_postal: e.target.value })} />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Código CIIU (Actividad)</label>
+                                                    <input type="text" placeholder="Ej: 4711" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
+                                                        value={formData.codigo_ciiu} onChange={e => setFormData({ ...formData, codigo_ciiu: e.target.value })} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Stock: Saldo de Envases</label>
@@ -639,6 +688,13 @@ export default function Providers() {
                                                         <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm"
                                                             value={formData.email_pagos} onChange={e => setFormData({ ...formData, email_pagos: e.target.value })} />
                                                     </div>
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Email Facturación Electrónica</label>
+                                                        <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm"
+                                                            value={formData.email_facturacion} onChange={e => setFormData({ ...formData, email_facturacion: e.target.value })} />
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-4">
                                                     <div className="flex-1">
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Saldo Cta. Cte. Actual</label>
                                                         <input type="number" step="0.01" className={`w-full border rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm font-bold ${formData.saldo_actual > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200'}`}
@@ -736,7 +792,32 @@ export default function Providers() {
                                                         {pedido.pagado ? 'PAGADO/EN CC' : 'FALTA PAGAR'}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs text-slate-500">Total: <b className="text-slate-700">${pedido.total.toFixed(2)}</b></p>
+                                                <div className="flex flex-col gap-1">
+                                                    <p className="text-xs text-slate-500">Total: <b className="text-slate-700">${pedido.total.toFixed(2)}</b></p>
+                                                    {pedido.cufe && <p className="text-[10px] font-mono text-slate-400">CUFE: {pedido.cufe}</p>}
+                                                </div>
+                                                
+                                                {/* DIAN EVENTS TRACKING */}
+                                                <div className="mt-3 flex gap-3 border-t border-slate-100 pt-2">
+                                                    <label className="flex items-center gap-1.5 cursor-pointer group">
+                                                        <input type="checkbox" className="w-3.5 h-3.5 rounded text-emerald-600" 
+                                                            checked={!!pedido.evento_acuse_recibo} 
+                                                            onChange={e => handleUpdateDianEvents(pedido, 'evento_acuse_recibo', e.target.checked)} />
+                                                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-emerald-600 transition-colors">Acuse</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-1.5 cursor-pointer group">
+                                                        <input type="checkbox" className="w-3.5 h-3.5 rounded text-emerald-600" 
+                                                            checked={!!pedido.evento_recibo_bienes} 
+                                                            onChange={e => handleUpdateDianEvents(pedido, 'evento_recibo_bienes', e.target.checked)} />
+                                                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-emerald-600 transition-colors">Recibo</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-1.5 cursor-pointer group">
+                                                        <input type="checkbox" className="w-3.5 h-3.5 rounded text-emerald-600" 
+                                                            checked={!!pedido.evento_aceptacion_expresa} 
+                                                            onChange={e => handleUpdateDianEvents(pedido, 'evento_aceptacion_expresa', e.target.checked)} />
+                                                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-emerald-600 transition-colors">Aceptación</span>
+                                                    </label>
+                                                </div>
                                             </div>
 
                                             <div className="flex gap-2">
@@ -833,10 +914,10 @@ export default function Providers() {
                                             ))}
                                         </tbody>
                                     </table>
-                                    {settings.arcaCompliance2026 && (
+                                    {settings.dianCompliance2026 && (
                                         <div className="bg-white p-4 border-t border-slate-100 grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-bold text-slate-600 mb-1">Percepciones Recibidas ($)</label>
+                                                <label className="block text-xs font-bold text-slate-600 mb-1">Cargos Adicionales / Flete ($)</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -847,7 +928,7 @@ export default function Providers() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-slate-600 mb-1">Retenciones Aplicadas ($)</label>
+                                                <label className="block text-xs font-bold text-slate-600 mb-1">Descuentos / Retenciones ($)</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -862,7 +943,7 @@ export default function Providers() {
                                     <div className="bg-emerald-50 p-4 border-t border-emerald-100 flex justify-between items-center text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-slate-500">Monto Neto: ${nuevoPedidoItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0).toFixed(2)}</span>
-                                            {settings.arcaCompliance2026 && (
+                                            {settings.dianCompliance2026 && (
                                                 <span className="text-slate-500 text-xs">Ajustes: +${percepcionesRec} / -${retencionesApl}</span>
                                             )}
                                         </div>

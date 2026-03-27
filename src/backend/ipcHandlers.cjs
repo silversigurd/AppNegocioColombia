@@ -131,13 +131,13 @@ async function setupIpcHandlers() {
 
     // --- PRODUCTO CRUD ---
     ipcMain.handle('save-producto', async (event, producto) => {
-        const { codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, sucursal_id, stock_inicial } = producto;
+        const { codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, sucursal_id, stock_inicial, tipo_impuesto_co, es_producto_saludable } = producto;
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 db.run(
-                    'INSERT INTO Productos (codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id],
+                    'INSERT INTO Productos (codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, tipo_impuesto_co, es_producto_saludable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id, tipo_impuesto_co || 'IVA_19', es_producto_saludable ? 1 : 0],
                     function (err) {
                         if (err) {
                             db.run('ROLLBACK');
@@ -165,13 +165,13 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('update-producto', async (event, producto) => {
-        const { id, codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, stock, sucursal_id } = producto;
+        const { id, codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota, tasa_internos, categoria_id, stock, sucursal_id, tipo_impuesto_co, es_producto_saludable } = producto;
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 db.run(
-                    'UPDATE Productos SET codigo = ?, nombre = ?, descripcion = ?, precio_compra = ?, precio_venta = ?, iva_alicuota = ?, tasa_internos = ?, categoria_id = ? WHERE id = ?',
-                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id, id],
+                    'UPDATE Productos SET codigo = ?, nombre = ?, descripcion = ?, precio_compra = ?, precio_venta = ?, iva_alicuota = ?, tasa_internos = ?, categoria_id = ?, tipo_impuesto_co = ?, es_producto_saludable = ? WHERE id = ?',
+                    [codigo, nombre, descripcion, precio_compra, precio_venta, iva_alicuota || 21, tasa_internos || 0, categoria_id, tipo_impuesto_co || 'IVA_19', es_producto_saludable ? 1 : 0, id],
                     (err) => {
                         if (err) {
                             db.run('ROLLBACK');
@@ -270,6 +270,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('save-proveedor', async (event, pro) => {
         const {
             nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
+            responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
             condicion_iva, condicion_iibb, direccion, email_compras,
             email_pagos, plazo_pago, cbu, rubro, saldo_actual
         } = pro;
@@ -278,12 +279,14 @@ async function setupIpcHandlers() {
             const query = `
                 INSERT INTO Proveedores (
                     nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
+                    responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
                     condicion_iva, condicion_iibb, direccion, email_compras, 
                     email_pagos, plazo_pago, cbu, rubro, saldo_actual
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             db.run(query, [
                 nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
+                responsabilidad_tributaria || 'R-99-PN', codigo_postal || null, email_facturacion || null, codigo_ciiu || null,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
                 email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0
             ], function (err) {
@@ -296,6 +299,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('update-proveedor', async (event, pro) => {
         const {
             id, nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
+            responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
             condicion_iva, condicion_iibb, direccion, email_compras,
             email_pagos, plazo_pago, cbu, rubro, saldo_actual
         } = pro;
@@ -304,12 +308,14 @@ async function setupIpcHandlers() {
             const query = `
                 UPDATE Proveedores SET 
                     nombre = ?, contacto = ?, telefono = ?, nombre_fantasia = ?, cuit = ?, nit = ?, responsable_iva = ?,
+                    responsabilidad_tributaria = ?, codigo_postal = ?, email_facturacion = ?, codigo_ciiu = ?,
                     condicion_iva = ?, condicion_iibb = ?, direccion = ?, email_compras = ?, 
                     email_pagos = ?, plazo_pago = ?, cbu = ?, rubro = ?, saldo_actual = ?
                 WHERE id = ?
             `;
             db.run(query, [
                 nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
+                responsabilidad_tributaria || 'R-99-PN', codigo_postal || null, email_facturacion || null, codigo_ciiu || null,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
                 email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0, id
             ], function (err) {
@@ -368,14 +374,14 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('save-pedido', async (event, pedidoData) => {
-        const { proveedor_id, sucursal_id, total, items } = pedidoData;
+        const { proveedor_id, sucursal_id, total, items, cufe, fecha_emision_fe } = pedidoData;
 
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
 
-                const stmtPedido = db.prepare('INSERT INTO Pedidos (proveedor_id, sucursal_id, total, estado, pagado) VALUES (?, ?, ?, ?, ?)');
-                stmtPedido.run(proveedor_id, sucursal_id, total, 'PENDIENTE', 0, function (err) {
+                const stmtPedido = db.prepare('INSERT INTO Pedidos (proveedor_id, sucursal_id, total, estado, pagado, cufe, fecha_emision_fe) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                stmtPedido.run(proveedor_id, sucursal_id, total, 'PENDIENTE', 0, cufe || null, fecha_emision_fe || null, function (err) {
                     if (err) {
                         db.run('ROLLBACK');
                         return reject(err);
@@ -495,7 +501,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('get-pedido-por-id', async (event, pedido_id) => {
         return new Promise((resolve, reject) => {
             const query = `
-                SELECT pe.*, pro.nombre as proveedor_nombre, pro.cuit as proveedor_cuit
+                SELECT pe.*, pro.nombre as proveedor_nombre, pro.nit as proveedor_nit
                 FROM Pedidos pe
                 JOIN Proveedores pro ON pe.proveedor_id = pro.id
                 WHERE pe.id = ?
@@ -504,6 +510,20 @@ async function setupIpcHandlers() {
                 if (err) reject(err);
                 else resolve(row);
             });
+        });
+    });
+
+    ipcMain.handle('update-pedido-dian-events', async (event, id, eventos) => {
+        const { evento_acuse_recibo, evento_recibo_bienes, evento_aceptacion_expresa } = eventos;
+        return new Promise((resolve, reject) => {
+            db.run(
+                `UPDATE Pedidos SET evento_acuse_recibo = ?, evento_recibo_bienes = ?, evento_aceptacion_expresa = ? WHERE id = ?`,
+                [evento_acuse_recibo ? 1 : 0, evento_recibo_bienes ? 1 : 0, evento_aceptacion_expresa ? 1 : 0, id],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                }
+            );
         });
     });
     // --- EMPLEADOS (RRHH) ---
@@ -912,6 +932,70 @@ async function setupIpcHandlers() {
             }
         });
     });
+    // --- CLIENTES (Colombia 2026 - Ley 1581 Habeas Data) ---
+    ipcMain.handle('get-clients', async (event, opts) => {
+        return new Promise((resolve, reject) => {
+            const search = opts?.search || '';
+            const query = search
+                ? `SELECT * FROM Clientes WHERE nombre LIKE ? OR email LIKE ? OR nit_cedula LIKE ? ORDER BY nombre ASC`
+                : `SELECT * FROM Clientes ORDER BY nombre ASC`;
+            const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+            db.all(query, params, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    });
+
+    ipcMain.handle('add-client', async (event, client) => {
+        const { nombre, telefono, email, nit_cedula, eps, fondo_pensiones, arl, autoriza_datos, fecha_autorizacion, datos_suprimidos } = client;
+        return new Promise((resolve, reject) => {
+            db.run(
+                `INSERT INTO Clientes (nombre, telefono, email, nit_cedula, eps, fondo_pensiones, arl, autoriza_datos, fecha_autorizacion, datos_suprimidos)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [nombre, telefono || null, email || null, nit_cedula || null, eps || null, fondo_pensiones || null, arl || null,
+                 autoriza_datos || 0, fecha_autorizacion || null, datos_suprimidos || 0],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true, id: this.lastID });
+                }
+            );
+        });
+    });
+
+    ipcMain.handle('update-client', async (event, client) => {
+        const { id, nombre, telefono, email, nit_cedula, eps, fondo_pensiones, arl, autoriza_datos, fecha_autorizacion, datos_suprimidos } = client;
+        return new Promise((resolve, reject) => {
+            db.run(
+                `UPDATE Clientes SET nombre = ?, telefono = ?, email = ?, nit_cedula = ?, eps = ?, fondo_pensiones = ?, arl = ?,
+                 autoriza_datos = ?, fecha_autorizacion = ?, datos_suprimidos = ? WHERE id = ?`,
+                [nombre, telefono || null, email || null, nit_cedula || null, eps || null, fondo_pensiones || null, arl || null,
+                 autoriza_datos || 0, fecha_autorizacion || null, datos_suprimidos || 0, id],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                }
+            );
+        });
+    });
+
+    // Ley 1581 — Derecho a la supresión de datos (Art. 8 literal e)
+    ipcMain.handle('suprimir-datos-cliente', async (event, { id }) => {
+        return new Promise((resolve, reject) => {
+            // Anonymize personal data but keep the purchase record (historial commercial)
+            db.run(
+                `UPDATE Clientes SET nombre = '[SUPRIMIDO]', telefono = NULL, email = NULL, nit_cedula = NULL,
+                 eps = NULL, fondo_pensiones = NULL, arl = NULL, autoriza_datos = 0,
+                 datos_suprimidos = 1 WHERE id = ?`,
+                [id],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve({ success: true });
+                }
+            );
+        });
+    });
+
 }
 
 module.exports = { setupIpcHandlers };
