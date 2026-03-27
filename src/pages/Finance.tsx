@@ -8,8 +8,10 @@ import PrintIcon from '@mui/icons-material/Print';
 import { ipc } from '../utils/ipc';
 import Ticket from '../components/Ticket';
 import PedidoTicket from '../components/PedidoTicket';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Finance() {
+    const { settings } = useSettings();
     const [movements, setMovements] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('TODOS');
@@ -80,12 +82,24 @@ export default function Finance() {
     const totalEgresos = movements.filter(m => m.tipo === 'EGRESO').reduce((acc, m) => acc + m.monto, 0);
     const balance = totalIngresos - totalEgresos;
 
+    const formatCurrency = (amount: number) => {
+        return amount.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', {
+            style: 'currency',
+            currency: settings.pais === 'Colombia' ? 'COP' : 'ARS',
+            minimumFractionDigits: 0
+        });
+    };
+
     return (
         <div className="flex flex-col h-full animate-fade-in">
             <div className="flex justify-between items-end mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Flujo de Caja</h1>
-                    <p className="text-sm text-slate-500 mt-1">Control de ingresos, egresos y balance general.</p>
+                    <h1 className="text-2xl font-bold text-slate-800">
+                        {settings.pais === 'Colombia' ? 'Gestión Financiera y Tributaria' : 'Flujo de Caja'}
+                    </h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {settings.pais === 'Colombia' ? 'Control de ingresos, egresos e impuestos (IVA, ICA, Retenciones).' : 'Control de ingresos, egresos y balance general.'}
+                    </p>
                 </div>
                 <div className="flex gap-3">
                     <button className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-bold transition-colors border border-emerald-200">
@@ -106,7 +120,7 @@ export default function Finance() {
                             <AccountBalanceWalletIcon />
                         </div>
                     </div>
-                    <h2 className="text-3xl font-black text-slate-800">${balance.toLocaleString('es-AR')}</h2>
+                    <h2 className="text-3xl font-black text-slate-800">{formatCurrency(balance)}</h2>
                 </div>
 
                 <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 shadow-md shadow-emerald-500/20 text-white">
@@ -116,7 +130,7 @@ export default function Finance() {
                             <ArrowUpwardIcon />
                         </div>
                     </div>
-                    <h2 className="text-3xl font-black">${totalIngresos.toLocaleString('es-AR')}</h2>
+                    <h2 className="text-3xl font-black">{formatCurrency(totalIngresos)}</h2>
                 </div>
 
                 <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-6 shadow-md shadow-rose-500/20 text-white">
@@ -126,7 +140,7 @@ export default function Finance() {
                             <ArrowDownwardIcon />
                         </div>
                     </div>
-                    <h2 className="text-3xl font-black">${totalEgresos.toLocaleString('es-AR')}</h2>
+                    <h2 className="text-3xl font-black">{formatCurrency(totalEgresos)}</h2>
                 </div>
             </div>
 
@@ -198,7 +212,7 @@ export default function Finance() {
                                         <span className="bg-slate-100 px-2.5 py-1 rounded-md">{mov.metodo || 'Venta Terminal'}</span>
                                     </td>
                                     <td className={`px-6 py-4 text-right font-bold ${mov.tipo === 'INGRESO' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        {mov.tipo === 'INGRESO' ? '+' : '-'}${mov.monto.toLocaleString('es-AR')}
+                                        {mov.tipo === 'INGRESO' ? '+' : '-'}{formatCurrency(mov.monto)}
                                     </td>
                                 </tr>
                             ))}
@@ -215,10 +229,10 @@ export default function Finance() {
                             <div>
                                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                                     <ReceiptIcon className="text-primary-600" />
-                                    Detalle de Ticket #{selectedTicketData.id}
+                                    Detalle de {settings.pais === 'Colombia' ? 'Factura/Ticket' : 'Ticket'} #{selectedTicketData.id}
                                 </h2>
                                 <p className="text-[10px] font-black uppercase text-slate-400 mt-1">
-                                    {new Date(selectedTicketData.fecha).toLocaleString('es-AR')}
+                                    {new Date(selectedTicketData.fecha).toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR')}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -236,17 +250,17 @@ export default function Finance() {
                         </div>
 
                         <div className="p-6">
-                            <div className="space-y-4 max-h-[300px] overflow-y-auto mb-6 pr-2 custom-scrollbar">
+                            <div className="space-y-4 max-h-[300px] overflow-y-auto mb-6 pr-2 custom-scrollbar border-b pb-4">
                                 {selectedTicketItems.map((item: any, i: number) => (
-                                    <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3">
+                                    <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0">
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-slate-700">{item.producto_nombre}</p>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                                                {item.cantidad} x ${item.precio_unitario.toLocaleString('es-AR')}
+                                                {item.cantidad} x {formatCurrency(item.precio_unitario)}
                                             </p>
                                         </div>
                                         <p className="text-sm font-black text-slate-800">
-                                            ${item.subtotal.toLocaleString('es-AR')}
+                                            {formatCurrency(item.subtotal)}
                                         </p>
                                     </div>
                                 ))}
@@ -255,15 +269,27 @@ export default function Finance() {
                             <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
                                 <div className="flex justify-between text-xs font-bold text-slate-500">
                                     <span>Subtotal</span>
-                                    <span>${selectedTicketData.subtotal.toLocaleString('es-AR')}</span>
+                                    <span>{formatCurrency(selectedTicketData.subtotal)}</span>
                                 </div>
                                 <div className="flex justify-between text-xs font-bold text-slate-500">
-                                    <span>IVA / Impuestos</span>
-                                    <span>${selectedTicketData.impuestos.toLocaleString('es-AR')}</span>
+                                    <span>{settings.pais === 'Colombia' ? 'IVA (19%)' : 'IVA / Impuestos'}</span>
+                                    <span>{formatCurrency(selectedTicketData.impuestos)}</span>
                                 </div>
+                                {settings.pais === 'Colombia' && (
+                                    <>
+                                        <div className="flex justify-between text-[10px] font-bold text-slate-400 italic">
+                                            <span>ReteFuente (Est. 2.5%)</span>
+                                            <span>-{formatCurrency(selectedTicketData.total * 0.025)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] font-bold text-slate-400 italic">
+                                            <span>ICA (Est. 11.04/1000)</span>
+                                            <span>-{formatCurrency(selectedTicketData.total * 0.01104)}</span>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="flex justify-between text-lg font-black text-slate-800 pt-2 border-t border-slate-200">
                                     <span>TOTAL</span>
-                                    <span className="text-primary-600">${selectedTicketData.total.toLocaleString('es-AR')}</span>
+                                    <span className="text-primary-600">{formatCurrency(selectedTicketData.total)}</span>
                                 </div>
                             </div>
 

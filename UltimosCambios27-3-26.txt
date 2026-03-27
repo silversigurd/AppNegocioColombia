@@ -1,0 +1,23 @@
+Localización CommerceOS Pro - Colombia 2026
+Se ha completado la adaptación integral del ecosistema para el mercado colombiano, asegurando el cumplimiento normativo y la diferenciación del producto.
+
+Cambios Implementados
+🏢 Módulo de RRHH (CST 2026)
+Cálculo de Indemnizaciones: Implementación del Art. 64 del CST (30 días por primer año, 20 días siguientes).
+Nómina Colombiana: Inclusión de SMMLV (estimado 2026), Auxilio de Transporte y deducciones de salud/pensión (4%).
+Legajos Localizados: Campos para Cédula de Ciudadanía, RUT, EPS, Fondo de Pensiones y ARL.
+💰 Finanzas y Facturación (DIAN POS)
+Tasas de IVA: Configurado al 19% por defecto para el mercado colombiano.
+Retenciones e ICA: Visualización de estimados de ReteFuente (2.5%) e ICA (11.04/1000) en el flujo de caja.
+Facturación POS: Formato de ticket adaptado con leyendas de resolución DIAN y moneda COP.
+⚙️ Configuración y Sistema
+Selector de País: Nueva opción en Ajustes para conmutar entre Argentina (ARCA/LCT) y Colombia (DIAN/CST).
+Identificación Fiscal: Soporte dual para NIT (Colombia) y CUIT (Argentina) con validaciones específicas.
+Diferenciación de Marca: Build configurado como "CommerceOS Pro Colombia" con ID de aplicación único para permitir instalaciones paralelas.
+Aspectos Legales
+EULA Actualizado: Licencia de uso final adaptada a las Leyes 1480 y 1581 de Colombia.
+Crédito de Autor: Se especifica la autoría por parte de un desarrollador de nacionalidad Argentina, con jurisdicción compartida.
+Verificación Visual
+NOTE
+
+Se recomienda realizar un npm run electron:dist limpio para generar el instalador de Colombia, el cual no sobrescribirá la versión de Argentina gracias a la habilitación de allowToChangeInstallationDirectory en NSIS.

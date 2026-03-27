@@ -41,17 +41,34 @@ export default function Ticket({
 
     let ticketText = '';
 
-    // Header — uses DB settings, not the static config.json
+    // Header logic
     ticketText += centerText(settings.businessName || '', width) + '\n';
-    if (settings.businessCuit) ticketText += centerText(`CUIT: ${settings.businessCuit}`, width) + '\n';
+    if (settings.pais === 'Colombia' && settings.taxId) {
+        ticketText += centerText(`NIT: ${settings.taxId}`, width) + '\n';
+    } else if (settings.businessCuit) {
+        ticketText += centerText(`CUIT: ${settings.businessCuit}`, width) + '\n';
+    }
+    
     if (settings.businessAddress) ticketText += centerText(settings.businessAddress, width) + '\n';
     ticketText += centerText(settings.tagline || '', width) + '\n';
 
     ticketText += border + '\n';
-    ticketText += centerText(`TICKET DE VENTA #${ticketId}`, width) + '\n';
-    if (ticketFecha) ticketText += centerText(new Date(ticketFecha).toLocaleString('es-AR'), width) + '\n';
-    if (ticketCliente) ticketText += centerText(`CLIENTE: ${ticketCliente}`, width) + '\n';
-    if (ticketVendedor) ticketText += centerText(`Atendido por: ${ticketVendedor}`, width) + '\n';
+    ticketText += centerText(settings.pais === 'Colombia' ? 'FACTURA DE VENTA POS' : `TICKET DE VENTA #${ticketId}`, width) + '\n';
+    if (settings.pais === 'Colombia') {
+        ticketText += centerText(`N°: ${ticketId}`, width) + '\n';
+    }
+    
+    if (ticketFecha) {
+        const locale = settings.pais === 'Colombia' ? 'es-CO' : 'es-AR';
+        ticketText += centerText(new Date(ticketFecha).toLocaleString(locale), width) + '\n';
+    }
+    
+    if (ticketCliente) {
+        const label = settings.pais === 'Colombia' ? 'ADQUIRIENTE' : 'CLIENTE';
+        ticketText += centerText(`${label}: ${ticketCliente}`, width) + '\n';
+    }
+    
+    if (ticketVendedor) ticketText += centerText(`Vendedor: ${ticketVendedor}`, width) + '\n';
     ticketText += border + '\n';
 
     // Items
@@ -60,32 +77,45 @@ export default function Ticket({
         const qty = item.cantidad || item.quantity || 1;
         const sub = item.subtotal || (item.precio_venta * qty);
 
-        const priceText = `$${sub?.toLocaleString('es-AR')}`;
+        const locale = settings.pais === 'Colombia' ? 'es-CO' : 'es-AR';
+        const priceText = `$${sub?.toLocaleString(locale, { minimumFractionDigits: 0 })}`;
         ticketText += formatItemLine(qty, name, priceText, width) + '\n';
     });
 
     ticketText += border + '\n';
 
     // Totals
-    if (settings.arcaCompliance2026 || isTransparente) {
-        ticketText += formatTotalLine('Neto Gravado:', `$${ticketSubtotal.toLocaleString('es-AR')}`, width) + '\n';
-        ticketText += formatTotalLine('IVA:', `$${ticketImpuestos.toLocaleString('es-AR')}`, width) + '\n';
+    const locale = settings.pais === 'Colombia' ? 'es-CO' : 'es-AR';
+    
+    if (settings.pais === 'Colombia') {
+        ticketText += formatTotalLine('Subtotal:', `$${ticketSubtotal.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
+        ticketText += formatTotalLine('IVA (19%):', `$${ticketImpuestos.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
+    } else if (settings.arcaCompliance2026 || isTransparente) {
+        ticketText += formatTotalLine('Neto Gravado:', `$${ticketSubtotal.toLocaleString(locale)}`, width) + '\n';
+        ticketText += formatTotalLine('IVA:', `$${ticketImpuestos.toLocaleString(locale)}`, width) + '\n';
         if (ticketInternos > 0) {
-            ticketText += formatTotalLine('Imp. Internos:', `$${ticketInternos.toLocaleString('es-AR')}`, width) + '\n';
+            ticketText += formatTotalLine('Imp. Internos:', `$${ticketInternos.toLocaleString(locale)}`, width) + '\n';
         }
     } else {
-        ticketText += formatTotalLine('Subtotal:', `$${ticketSubtotal.toLocaleString('es-AR')}`, width) + '\n';
-        ticketText += formatTotalLine('Impuestos:', `$${ticketImpuestos.toLocaleString('es-AR')}`, width) + '\n';
+        ticketText += formatTotalLine('Subtotal:', `$${ticketSubtotal.toLocaleString(locale)}`, width) + '\n';
+        ticketText += formatTotalLine('Impuestos:', `$${ticketImpuestos.toLocaleString(locale)}`, width) + '\n';
     }
-    ticketText += formatTotalLine('TOTAL:', `$${ticketTotal.toLocaleString('es-AR')}`, width) + '\n';
+    
+    ticketText += formatTotalLine('TOTAL:', `$${ticketTotal.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
 
     ticketText += border + '\n';
-    if (settings.arcaCompliance2026 || isTransparente) {
+    
+    if (settings.pais === 'Colombia') {
+        ticketText += centerText('SISTEMA POS ELECTRÓNICO DIAN 2026', width) + '\n';
+        ticketText += centerText('Resolución habilitación N° 123456...', width) + '\n';
+        ticketText += centerText('No aplica Retenciones en POS', width) + '\n';
+    } else if (settings.arcaCompliance2026 || isTransparente) {
         ticketText += centerText('Régimen de Transparencia Fiscal', width) + '\n';
         ticketText += centerText('Ley 27.743 - ARCA', width) + '\n';
     } else {
         ticketText += centerText('No valido como factura', width) + '\n';
     }
+    
     ticketText += centerText('¡GRACIAS POR SU COMPRA!', width) + '\n';
 
     return (

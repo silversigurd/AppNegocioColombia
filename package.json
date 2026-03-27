@@ -17,8 +17,8 @@
     "electron:dist": "npm run build && electron-builder --win"
   },
   "build": {
-    "appId": "com.pepe.commerceos",
-    "productName": "CommerceOS Pro",
+    "appId": "com.pepe.commerceos.colombia",
+    "productName": "CommerceOS Pro Colombia",
     "directories": {
       "output": "dist-electron"
     },
@@ -32,11 +32,11 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CommerceOS Pro",
-      "uninstallDisplayName": "Desinstalar CommerceOS Pro",
+      "shortcutName": "CommerceOS Pro Colombia",
+      "uninstallDisplayName": "Desinstalar CommerceOS Pro Colombia",
       "license": "license.rtf",
       "installerLanguages": [
         "es_ES"

@@ -216,6 +216,38 @@ async function initDb() {
       valor TEXT NOT NULL
     )`);
 
+    // Initialize country to Colombia if not set
+    const countrySet = await dbGet('SELECT valor FROM Configuracion WHERE clave = ?', ['pais']);
+    if (!countrySet) {
+      await dbRun('INSERT INTO Configuracion (clave, valor) VALUES (?, ?)', ['pais', 'Colombia']);
+    }
+
+    // 2. Empleados - Colombia 2026 Fields
+    const colombiaEmpFields = [
+      "cedula_ciudadania TEXT", "documento_extranjeria TEXT", "rut TEXT", 
+      "eps TEXT", "fondo_pensiones TEXT", "arl TEXT",
+      "vacunacion_rabia BOOLEAN DEFAULT 0", "matricula_profesional TEXT"
+    ];
+    for (const col of colombiaEmpFields) {
+      await dbRun(`ALTER TABLE Empleados ADD COLUMN ${col}`).catch(() => { });
+    }
+
+    // 4. Proveedores - Colombia 2026 Fields
+    const colombiaProvFields = [
+      "nit TEXT", "responsable_iva BOOLEAN DEFAULT 1"
+    ];
+    for (const col of colombiaProvFields) {
+      await dbRun(`ALTER TABLE Proveedores ADD COLUMN ${col}`).catch(() => { });
+    }
+
+    // 6. Productos - Colombia 2026 Fields
+    const colombiaProdFields = [
+      "registro_ica TEXT", "lote TEXT", "fecha_vencimiento TEXT"
+    ];
+    for (const col of colombiaProdFields) {
+      await dbRun(`ALTER TABLE Productos ADD COLUMN ${col}`).catch(() => { });
+    }
+
     // 8.5 Usuarios
     await dbRun(`CREATE TABLE IF NOT EXISTS Usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

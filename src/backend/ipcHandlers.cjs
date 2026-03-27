@@ -269,7 +269,7 @@ async function setupIpcHandlers() {
 
     ipcMain.handle('save-proveedor', async (event, pro) => {
         const {
-            nombre, contacto, telefono, nombre_fantasia, cuit,
+            nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
             condicion_iva, condicion_iibb, direccion, email_compras,
             email_pagos, plazo_pago, cbu, rubro, saldo_actual
         } = pro;
@@ -277,13 +277,13 @@ async function setupIpcHandlers() {
         return new Promise((resolve, reject) => {
             const query = `
                 INSERT INTO Proveedores (
-                    nombre, contacto, telefono, nombre_fantasia, cuit, 
+                    nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
                     condicion_iva, condicion_iibb, direccion, email_compras, 
                     email_pagos, plazo_pago, cbu, rubro, saldo_actual
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             db.run(query, [
-                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null,
+                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
                 email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0
             ], function (err) {
@@ -295,7 +295,7 @@ async function setupIpcHandlers() {
 
     ipcMain.handle('update-proveedor', async (event, pro) => {
         const {
-            id, nombre, contacto, telefono, nombre_fantasia, cuit,
+            id, nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
             condicion_iva, condicion_iibb, direccion, email_compras,
             email_pagos, plazo_pago, cbu, rubro, saldo_actual
         } = pro;
@@ -303,13 +303,13 @@ async function setupIpcHandlers() {
         return new Promise((resolve, reject) => {
             const query = `
                 UPDATE Proveedores SET 
-                    nombre = ?, contacto = ?, telefono = ?, nombre_fantasia = ?, cuit = ?, 
+                    nombre = ?, contacto = ?, telefono = ?, nombre_fantasia = ?, cuit = ?, nit = ?, responsable_iva = ?,
                     condicion_iva = ?, condicion_iibb = ?, direccion = ?, email_compras = ?, 
                     email_pagos = ?, plazo_pago = ?, cbu = ?, rubro = ?, saldo_actual = ?
                 WHERE id = ?
             `;
             db.run(query, [
-                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null,
+                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
                 email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0, id
             ], function (err) {
@@ -536,6 +536,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('save-empleado', async (event, empleado) => {
         const {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+            cedula_ciudadania, rut, eps, fondo_pensiones, arl,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
             modalidad_contratacion, telefono, ajustes_proximos_json
@@ -545,13 +546,15 @@ async function setupIpcHandlers() {
             const query = `
                 INSERT INTO Empleados (
                     nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+                    cedula_ciudadania, rut, eps, fondo_pensiones, arl,
                     direccion, partido, localidad, obra_social, fecha_ingreso,
                     categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
                     modalidad_contratacion, telefono, ajustes_proximos_json, estado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo')
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
+                cedula_ciudadania || null, rut || null, eps || null, fondo_pensiones || null, arl || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
                 modalidad_contratacion || 'Formal', telefono || null, ajustes_proximos_json || null
@@ -565,6 +568,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('update-empleado', async (event, empleado) => {
         const {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
+            cedula_ciudadania, rut, eps, fondo_pensiones, arl,
             direccion, partido, localidad, obra_social, fecha_ingreso,
             categoria_cct, sueldo_basico, jornada_laboral, horas_parcial, contrato_filepath,
             modalidad_contratacion, telefono, ajustes_proximos_json
@@ -574,6 +578,7 @@ async function setupIpcHandlers() {
             const query = `
                 UPDATE Empleados SET 
                     nombre = ?, cargo = ?, tarifa_hora = ?, sucursal_id = ?, dni = ?, cuil = ?,
+                    cedula_ciudadania = ?, rut = ?, eps = ?, fondo_pensiones = ?, arl = ?,
                     direccion = ?, partido = ?, localidad = ?, obra_social = ?, fecha_ingreso = ?,
                     categoria_cct = ?, sueldo_basico = ?, jornada_laboral = ?, horas_parcial = ?, contrato_filepath = ?,
                     modalidad_contratacion = ?, telefono = ?, ajustes_proximos_json = ?
@@ -581,6 +586,7 @@ async function setupIpcHandlers() {
             `;
             db.run(query, [
                 nombre, cargo || null, tarifa_hora || 0, sucursal_id || null, dni || null, cuil || null,
+                cedula_ciudadania || null, rut || null, eps || null, fondo_pensiones || null, arl || null,
                 direccion || null, partido || null, localidad || null, obra_social || null, fecha_ingreso || null,
                 categoria_cct || null, sueldo_basico || 0, jornada_laboral || null, horas_parcial || 0, contrato_filepath || null,
                 modalidad_contratacion || 'Formal', telefono || null, ajustes_proximos_json || null, id

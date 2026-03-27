@@ -125,12 +125,19 @@ export default function POS() {
 
         cart.forEach(item => {
             const itemTotal = item.precio_venta * item.quantity;
-            if (settings.arcaCompliance2026) {
-                // Impuesto por dentro calculation
+            if (settings.pais === 'Colombia') {
+                // Colombia: IVA is typically 19%, 5% or 0%. Assuming default 19% for now.
+                const ivaRate = 0.19; 
+                const neto = itemTotal / (1 + ivaRate);
+                const iva = itemTotal - neto;
+                
+                totalNeto += neto;
+                totalIVA += iva;
+                finalTotal += itemTotal;
+            } else if (settings.arcaCompliance2026) {
+                // Argentina ARCA
                 const ivaAlic = item.iva_alicuota || 21;
                 const internosAlic = item.tasa_internos || 0;
-
-                // Final = Neto * (1 + iva/100 + internos/100)
                 const denom = 1 + (ivaAlic / 100) + (internosAlic / 100);
                 const neto = itemTotal / denom;
                 const iva = neto * (ivaAlic / 100);
@@ -141,7 +148,7 @@ export default function POS() {
                 totalInternos += internos;
                 finalTotal += itemTotal;
             } else {
-                // Legacy calculation: 21% added over subtotal
+                // Legacy
                 totalNeto += itemTotal;
                 totalIVA += itemTotal * 0.21;
                 finalTotal += itemTotal * 1.21;
@@ -161,8 +168,15 @@ export default function POS() {
     const confirmPayment = async () => {
         if (cart.length === 0) return;
 
-        // ARCA: Large sales must identify the buyer
-        if (settings.arcaCompliance2026 && total > 10000000 && !clienteIden) {
+        // Validation for large sales
+        if (settings.pais === 'Colombia') {
+            // DIAN: Large sales should be identified.
+            // Simplified: If > 2.000.000 COP, notify or require.
+            if (total > 2000000 && !clienteIden) {
+                alert('Ventas superiores a $2.000.000 requieren identificación del comprador para cumplimiento DIAN.');
+                return;
+            }
+        } else if (settings.arcaCompliance2026 && total > 10000000 && !clienteIden) {
             alert('Las ventas superiores a $10.000.000 requieren identificación del comprador (CUIT/CUIL/DNI/Pasaporte)');
             return;
         }
@@ -267,7 +281,11 @@ export default function POS() {
                                             <h4 className="font-bold leading-tight group-hover:text-primary-600 transition-colors line-clamp-2">{product.nombre}</h4>
                                         </div>
                                         <div className="flex justify-between items-end">
-                                            <span className="text-lg font-black">${product.precio_venta}</span>
+                                            <span className="text-lg font-black">
+                                                {settings.pais === 'Colombia' 
+                                                    ? `$${product.precio_venta.toLocaleString('es-CO')}` 
+                                                    : `$${product.precio_venta.toLocaleString('es-AR')}`}
+                                            </span>
                                             <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center group-hover:bg-primary-600 group-hover:text-white transition-colors">
                                                 <AddShoppingCartIcon fontSize="small" />
                                             </div>
@@ -292,30 +310,38 @@ export default function POS() {
 
                     {/* Cart Items */}
                     <div className="flex-1 overflow-y-auto p-2">
-                        {settings.arcaCompliance2026 && (
+                        {(settings.pais === 'Colombia' || settings.arcaCompliance2026) && (
                             <div className="px-2 mb-2 space-y-2">
                                 <div className="relative">
                                     <PersonIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" sx={{ fontSize: 16 }} />
                                     <input
                                         type="text"
-                                        placeholder="Identificación del cliente..."
+                                        placeholder={settings.pais === 'Colombia' ? "Cédula/NIT del Cliente..." : "Identificación del cliente..."}
                                         className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:border-primary-400 focus:ring-2 focus:ring-primary-50 outline-none"
                                         value={clienteIden}
                                         onChange={(e) => setClienteIden(e.target.value)}
                                     />
                                 </div>
-                                <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
-                                    <input
-                                        type="checkbox"
-                                        id="transparencia"
-                                        checked={consumoTransparente}
-                                        onChange={(e) => setConsumoTransparente(e.target.checked)}
-                                        className="w-4 h-4 accent-primary-600 cursor-pointer"
-                                    />
-                                    <label htmlFor="transparencia" className="text-[10px] font-bold text-primary-700 cursor-pointer select-none">
-                                        Régimen de Transparencia Fiscal (Discriminado)
-                                    </label>
-                                </div>
+                                {settings.pais === 'Argentina' && settings.arcaCompliance2026 && (
+                                    <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
+                                        <input
+                                            type="checkbox"
+                                            id="transparencia"
+                                            checked={consumoTransparente}
+                                            onChange={(e) => setConsumoTransparente(e.target.checked)}
+                                            className="w-4 h-4 accent-primary-600 cursor-pointer"
+                                        />
+                                        <label htmlFor="transparencia" className="text-[10px] font-bold text-primary-700 cursor-pointer select-none">
+                                            Régimen de Transparencia Fiscal (Discriminado)
+                                        </label>
+                                    </div>
+                                )}
+                                {settings.pais === 'Colombia' && (
+                                    <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <p className="text-[9px] font-bold text-emerald-700 uppercase">Cumplimiento DIAN POS 2026 Activo</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {cart.length === 0 ? (
@@ -330,7 +356,11 @@ export default function POS() {
                                     <div key={item.id} className="p-3 bg-white rounded-2xl border border-slate-100 flex items-center gap-3 relative group">
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-sm truncate pr-6">{item.nombre}</h4>
-                                            <p className="text-primary-600 font-bold text-sm leading-none mt-1">${item.precio_venta}</p>
+                                            <p className="text-primary-600 font-bold text-sm leading-none mt-1">
+                                                {settings.pais === 'Colombia' 
+                                                    ? `$${item.precio_venta.toLocaleString('es-CO')}` 
+                                                    : `$${item.precio_venta.toLocaleString('es-AR')}`}
+                                            </p>
                                         </div>
                                         <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1 border border-slate-200">
                                             <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, -1); }} className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-slate-600 shadow-sm hover:text-primary-600 font-bold">-</button>
@@ -354,16 +384,16 @@ export default function POS() {
                         <div className="space-y-3 mb-6 relative">
                             <div className="flex justify-between text-sm font-medium text-slate-500">
                                 <span>Subtotal</span>
-                                <span>${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                                <span>{subtotal.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between text-sm font-medium text-slate-500">
-                                <span>IVA</span>
-                                <span>${impuestos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                                <span>IVA {settings.pais === 'Colombia' ? '(19%)' : ''}</span>
+                                <span>{impuestos.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { minimumFractionDigits: 2 })}</span>
                             </div>
-                            {settings.arcaCompliance2026 && impuestos_internos > 0 && (
+                            {settings.pais === 'Argentina' && settings.arcaCompliance2026 && impuestos_internos > 0 && (
                                 <div className="flex justify-between text-sm font-medium text-slate-500">
                                     <span>Imp. Internos</span>
-                                    <span>${impuestos_internos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                                    <span>{impuestos_internos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
 
@@ -372,7 +402,7 @@ export default function POS() {
                             <div className="flex justify-between items-end pt-4">
                                 <span className="font-bold">Total</span>
                                 <span className="text-4xl font-black text-primary-600 tracking-tight">
-                                    ${total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                    {total.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { minimumFractionDigits: 2 })}
                                 </span>
                             </div>
                         </div>
