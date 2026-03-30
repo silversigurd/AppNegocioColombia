@@ -644,8 +644,8 @@ export default function Providers() {
                                             <div className="space-y-4">
                                                 <div className="flex gap-4">
                                                     <div className="flex-[2]">
-                                                        <label className="block text-xs font-bold text-slate-600 mb-1">CBU / Alias (22 dígitos o Alias)</label>
-                                                        <input type="text" maxLength={22} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm font-mono"
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Banco / N° de Cuenta (Ahorros o Corriente)</label>
+                                                        <input type="text" placeholder="Ej: Bancolombia Ahorros 123..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm font-mono"
                                                             value={formData.cbu} onChange={e => setFormData({ ...formData, cbu: e.target.value })} />
                                                     </div>
                                                     <div className="flex-[1]">
@@ -707,12 +707,12 @@ export default function Providers() {
                                         {/* SECCION 4 */}
                                         <div>
                                             <h3 className="text-sm font-bold uppercase tracking-wider text-rose-600 flex items-center gap-2 border-b border-rose-100 pb-2 mb-4">
-                                                <ReceiptIcon fontSize="small" /> D. Retenciones e Impositivo
+                                                <ReceiptIcon fontSize="small" /> D. Configuración Tributaria / Retenciones
                                             </h3>
                                             <div className="space-y-4">
                                                 <div className="flex gap-4">
                                                     <div className="flex-1">
-                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Retención Ganancias</label>
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1">ReteFuente %</label>
                                                         <div className="relative">
                                                             <input type="number" step="0.1" max="100" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 outline-none focus:border-rose-500 text-sm"
                                                                 value={formData.retencion_ganancias} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, retencion_ganancias: parseFloat(e.target.value) || 0 })} />
@@ -720,7 +720,7 @@ export default function Providers() {
                                                         </div>
                                                     </div>
                                                     <div className="flex-1">
-                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Retención IIBB</label>
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1">ReteICA %</label>
                                                         <div className="relative">
                                                             <input type="number" step="0.01" max="100" min="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 outline-none focus:border-rose-500 text-sm"
                                                                 value={formData.retencion_iibb} onFocus={(e) => e.target.select()} onChange={e => setFormData({ ...formData, retencion_iibb: parseFloat(e.target.value) || 0 })} />
@@ -729,7 +729,7 @@ export default function Providers() {
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Vto. Certificado Exclusión</label>
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1">Certificado de No Retención / Exención</label>
                                                     <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-rose-500 text-sm"
                                                         value={formData.vencimiento_certificado_exencion} onChange={e => setFormData({ ...formData, vencimiento_certificado_exencion: e.target.value })} />
                                                 </div>

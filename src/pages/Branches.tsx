@@ -590,18 +590,24 @@ export default function Branches() {
         const anio = hoy.getFullYear();
 
         const valorDiaBruto = Number(selectedEmpleado.sueldo_basico) / 30;
-        const valorDiaNeto = valorDiaBruto * 0.805; // 19.5% standard deductions (11+3+3+2+0.5)
-        const montoStr = (valorDiaNeto * vacationData.dias).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+        const deducciones = settings.pais === 'Colombia' ? 0.08 : 0.195; // 8% en COL vs 19.5% en ARG
+        const valorDiaNeto = valorDiaBruto * (1 - deducciones);
+        const locale = settings.pais === 'Colombia' ? 'es-CO' : 'es-AR';
+        const montoStr = (valorDiaNeto * vacationData.dias).toLocaleString(locale, { minimumFractionDigits: settings.pais === 'Colombia' ? 0 : 2 });
 
         doc.setFontSize(11);
-        doc.text(`La Plata, ${dias} de ${mes} de ${anio}`, 400, 60, { align: 'right' });
+        doc.text(`${settings.pais === 'Colombia' ? 'Colombia' : 'La Plata'}, ${dias} de ${mes} de ${anio}`, 400, 60, { align: 'right' });
 
         const margin = 50;
         const startY = 150;
         const lineHeight = 18;
 
         doc.setFont('helvetica', 'normal');
-        let text = `Por medio de la presente, yo ${emp.nombre}, DNI ${emp.dni}, dejo constancia de que he solicitado a la empresa ${settings.businessName || 'BIO LABBCE S.R.L.'} la posibilidad de percibir una compensación económica de $${montoStr} a cambio de no gozar de ${vacationData.dias} días de licencia correspondientes al período ${vacationData.periodo}.`;
+        const idLabel = settings.pais === 'Colombia' ? 'Cédula' : 'DNI';
+        const idValue = settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.dni || '________') : (emp.dni || '________');
+        
+        const locName = settings.pais === 'Colombia' ? 'Colombia' : 'La Plata';
+        let text = `Por medio de la presente, yo ${emp.nombre}, ${idLabel} ${idValue}, dejo constancia de que he solicitado a la empresa ${settings.businessName || 'Comercio Pepito'} la posibilidad de percibir una compensación económica de $${montoStr} a cambio de no gozar de ${vacationData.dias} días de vacaciones correspondientes al período ${vacationData.periodo}.`;
 
         const splitText = doc.splitTextToSize(text, 500);
         doc.text(splitText, margin, startY);
@@ -624,7 +630,7 @@ export default function Branches() {
 
         doc.text(`Firma del empleado`, margin, nextY);
         doc.text(`Aclaración: ___________________________`, margin, nextY + 20);
-        doc.text(`DNI: ${emp.dni}`, margin, nextY + 40);
+        doc.text(`${idLabel}: ${idValue}`, margin, nextY + 40);
 
         doc.text(`Firma del empleador`, 350, nextY);
         doc.text(`Aclaración: ___________________________`, 350, nextY + 20);
