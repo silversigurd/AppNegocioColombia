@@ -733,7 +733,7 @@ async function setupIpcHandlers() {
             const hash = crypto.createHash('sha256').update(password).digest('hex');
             // JOIN with Empleados to get the seller's full name for receipts
             const query = `
-                SELECT u.id, u.username, u.rol, u.empleado_id, e.nombre as empleado_nombre
+                SELECT u.id, u.username, u.rol, u.empleado_id, u.nombre_propietario, e.nombre as empleado_nombre
                 FROM Usuarios u
                 LEFT JOIN Empleados e ON u.empleado_id = e.id
                 WHERE u.username = ? AND u.password_hash = ?
@@ -752,7 +752,7 @@ async function setupIpcHandlers() {
     ipcMain.handle('get-usuarios', async () => {
         return new Promise((resolve, reject) => {
             const query = `
-                SELECT u.id, u.username, u.rol, u.empleado_id, u.fecha_creacion, e.nombre as empleado_nombre
+                SELECT u.id, u.username, u.rol, u.empleado_id, u.fecha_creacion, u.nombre_propietario, e.nombre as empleado_nombre
                 FROM Usuarios u
                 LEFT JOIN Empleados e ON u.empleado_id = e.id
                 ORDER BY u.id ASC
@@ -766,11 +766,11 @@ async function setupIpcHandlers() {
 
     ipcMain.handle('save-usuario', async (event, userData) => {
         return new Promise((resolve, reject) => {
-            const { username, password, rol, empleado_id } = userData;
+            const { username, password, rol, empleado_id, nombre_propietario } = userData;
             const hash = crypto.createHash('sha256').update(password).digest('hex');
             const empId = empleado_id || null;
 
-            db.run('INSERT INTO Usuarios (username, password_hash, rol, empleado_id) VALUES (?, ?, ?, ?)', [username, hash, rol, empId], function (err) {
+            db.run('INSERT INTO Usuarios (username, password_hash, rol, empleado_id, nombre_propietario) VALUES (?, ?, ?, ?, ?)', [username, hash, rol, empId, nombre_propietario || null], function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE constraint failed')) {
                         resolve({ success: false, error: 'El nombre de usuario ya existe.' });
@@ -786,19 +786,19 @@ async function setupIpcHandlers() {
 
     ipcMain.handle('update-usuario', async (event, userData) => {
         return new Promise((resolve, reject) => {
-            const { id, username, password, rol, empleado_id } = userData;
+            const { id, username, password, rol, empleado_id, nombre_propietario } = userData;
             const empId = empleado_id || null;
 
             if (password && password.trim() !== '') {
                 // Update with new password
                 const hash = crypto.createHash('sha256').update(password).digest('hex');
-                db.run('UPDATE Usuarios SET username = ?, password_hash = ?, rol = ?, empleado_id = ? WHERE id = ?', [username, hash, rol, empId, id], function (err) {
+                db.run('UPDATE Usuarios SET username = ?, password_hash = ?, rol = ?, empleado_id = ?, nombre_propietario = ? WHERE id = ?', [username, hash, rol, empId, nombre_propietario || null, id], function (err) {
                     if (err) reject(err);
                     else resolve({ success: true });
                 });
             } else {
                 // Update without changing password
-                db.run('UPDATE Usuarios SET username = ?, rol = ?, empleado_id = ? WHERE id = ?', [username, rol, empId, id], function (err) {
+                db.run('UPDATE Usuarios SET username = ?, rol = ?, empleado_id = ?, nombre_propietario = ? WHERE id = ?', [username, rol, empId, nombre_propietario || null, id], function (err) {
                     if (err) reject(err);
                     else resolve({ success: true });
                 });

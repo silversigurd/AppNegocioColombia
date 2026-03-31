@@ -19,11 +19,13 @@ export default function Users() {
         password: string;
         rol: 'Admin' | 'Empleado';
         empleado_id: number | '';
+        nombre_propietario: string;
     }>({
         username: '',
         password: '',
         rol: 'Empleado',
-        empleado_id: ''
+        empleado_id: '',
+        nombre_propietario: ''
     });
     const [formError, setFormError] = useState('');
 
@@ -52,7 +54,8 @@ export default function Users() {
                 username: user.username,
                 password: '',
                 rol: user.rol,
-                empleado_id: user.empleado_id ?? ''
+                empleado_id: user.empleado_id ?? '',
+                nombre_propietario: user.nombre_propietario ?? ''
             });
         } else {
             setEditingUser(null);
@@ -60,7 +63,8 @@ export default function Users() {
                 username: '',
                 password: '',
                 rol: 'Empleado',
-                empleado_id: ''
+                empleado_id: '',
+                nombre_propietario: ''
             });
         }
         setIsModalOpen(true);
@@ -251,20 +255,34 @@ export default function Users() {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Empleado Vinculado (para el Ticket)</label>
-                                <select
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-400 transition-all font-bold text-slate-700 appearance-none"
-                                    value={formData.empleado_id}
-                                    onChange={(e) => setFormData({ ...formData, empleado_id: e.target.value === '' ? '' : Number(e.target.value) })}
-                                >
-                                    <option value="">-- Sin vincular (usar nombre de usuario) --</option>
-                                    {empleados.map(emp => (
-                                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-                                    ))}
-                                </select>
-                                <p className="text-[10px] text-slate-400 mt-1 ml-1">Si se vincula, el ticket imprimirá el nombre real del empleado.</p>
-                            </div>
+                            {formData.username === 'Principal' ? (
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1 text-primary-600">Nombre propietario (Para el ticket)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 bg-primary-50 border border-primary-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={formData.nombre_propietario}
+                                        placeholder="Ej: Nicolás Sanc"
+                                        onChange={(e) => setFormData({ ...formData, nombre_propietario: e.target.value })}
+                                    />
+                                    <p className="text-[10px] text-primary-400 mt-1 ml-1">Como usuario Principal, este nombre saldrá en el ticket en lugar de tu nombre de usuario.</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Empleado Vinculado (para el Ticket)</label>
+                                    <select
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-400 transition-all font-bold text-slate-700 appearance-none"
+                                        value={formData.empleado_id}
+                                        onChange={(e) => setFormData({ ...formData, empleado_id: e.target.value === '' ? '' : Number(e.target.value) })}
+                                    >
+                                        <option value="">-- Sin vincular (usar nombre de usuario) --</option>
+                                        {empleados.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[10px] text-slate-400 mt-1 ml-1">Si se vincula, el ticket imprimirá el nombre real del empleado.</p>
+                                </div>
+                            )}
 
                             {formError && (
                                 <p className="text-red-500 text-sm mt-2 text-center font-semibold">{formError}</p>

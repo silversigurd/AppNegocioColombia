@@ -278,6 +278,7 @@ async function initDb() {
       fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(empleado_id) REFERENCES Empleados(id) ON DELETE SET NULL
     )`);
+    await dbRun(`ALTER TABLE Usuarios ADD COLUMN nombre_propietario TEXT`).catch(() => { });
     await dbRun(`ALTER TABLE Usuarios ADD COLUMN empleado_id INTEGER REFERENCES Empleados(id) ON DELETE SET NULL`).catch(() => { });
 
     // 9. Ventas

@@ -7,6 +7,7 @@ export interface User {
     rol: 'Admin' | 'Empleado';
     empleado_id?: number | null;
     empleado_nombre?: string | null;
+    nombre_propietario?: string | null;
 }
 
 interface AuthContextType {

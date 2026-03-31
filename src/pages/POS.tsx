@@ -236,7 +236,9 @@ export default function POS() {
                 impuestos_internos,
                 cliente_identificacion: clienteIden,
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
-                vendedor: user?.empleado_nombre || user?.username || 'Sistema'
+                vendedor: user?.username === 'Principal' 
+                    ? (user?.nombre_propietario || user?.username || 'Sistema')
+                    : (user?.empleado_nombre || user?.username || 'Sistema')
             });
             setShowPrintOptions(true);
 
