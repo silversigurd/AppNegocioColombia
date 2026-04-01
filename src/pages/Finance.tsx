@@ -306,6 +306,12 @@ export default function Finance() {
                                             <span>ICA (Est. {settings.tasaICA || 11.04}/1000)</span>
                                             <span>-{formatCurrency(selectedTicketData.total * ((settings.tasaICA || 11.04) / 1000))}</span>
                                         </div>
+                                        {selectedTicketData.medio_pago && (
+                                            <div className="flex justify-between text-xs font-bold text-slate-500 mt-2 border-t border-slate-100 pt-2">
+                                                <span>Medio de Pago</span>
+                                                <span className="text-primary-700">{selectedTicketData.medio_pago}</span>
+                                            </div>
+                                        )}
                                     </>
                                 ) : (
                                     <div className="flex justify-between text-xs font-bold text-slate-500">

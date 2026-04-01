@@ -73,36 +73,41 @@ export default function Ticket({
         const qty = item.cantidad || item.quantity || 1;
         const sub = item.subtotal || (item.precio_venta * qty);
 
-        const priceText = `$${sub?.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+        const priceText = `$${Math.round(sub).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
         ticketText += formatItemLine(qty, name, priceText, width) + '\n';
     });
 
     ticketText += border + '\n';
 
     // Totals
-    const locale = 'es-CO';
+    const formatCOP = (val: number) => `$${Math.round(val).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     
-    ticketText += formatTotalLine('Subtotal:', `$${ticketSubtotal.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
-    if (iva19 > 0) ticketText += formatTotalLine('IVA 19%:', `$${iva19.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
-    if (iva5 > 0) ticketText += formatTotalLine('IVA 5%:', `$${iva5.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
-    if (ipoc > 0) ticketText += formatTotalLine('IPOC 8%:', `$${ipoc.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
-    if (impSaludable > 0) ticketText += formatTotalLine('Imp.Saludable:', `$${impSaludable.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
+    ticketText += formatTotalLine('Subtotal:', formatCOP(ticketSubtotal), width) + '\n';
+    if (iva19 > 0) ticketText += formatTotalLine('IVA 19%:', formatCOP(iva19), width) + '\n';
+    if (iva5 > 0) ticketText += formatTotalLine('IVA 5%:', formatCOP(iva5), width) + '\n';
+    if (ipoc > 0) ticketText += formatTotalLine('IPOC 8%:', formatCOP(ipoc), width) + '\n';
+    if (impSaludable > 0) ticketText += formatTotalLine('Imp.Saludable:', formatCOP(impSaludable), width) + '\n';
     if (iva19 === 0 && iva5 === 0 && ipoc === 0 && impSaludable === 0 && ticketImpuestos > 0) {
-        ticketText += formatTotalLine('IVA:', `$${ticketImpuestos.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
+        ticketText += formatTotalLine('IVA:', formatCOP(ticketImpuestos), width) + '\n';
     }
     
-    ticketText += formatTotalLine('TOTAL:', `$${ticketTotal.toLocaleString(locale, { minimumFractionDigits: 0 })}`, width) + '\n';
+    ticketText += formatTotalLine('TOTAL:', formatCOP(ticketTotal), width) + '\n';
 
     ticketText += border + '\n';
     
-    ticketText += border + '\n';
-    if (medioPago) ticketText += centerText(`Medio de Pago: ${medioPago}`, width) + '\n';
-    ticketText += centerText('SISTEMA POS ELECTRÓNICO DIAN 2026', width) + '\n';
-    const resolucion = settings.resolucionDIAN || 'Sin resolución registrada';
-    ticketText += centerText(`Resol. ${resolucion}`, width) + '\n';
-    ticketText += centerText('No aplica Retenciones en POS', width) + '\n';
-    if (cudeLocal) {
-        ticketText += centerText(`CUDE: ${cudeLocal.substring(0, 20)}...`, width) + '\n';
+    if (medioPago) {
+        ticketText += centerText(`MÉTODO DE PAGO: ${medioPago}`, width) + '\n';
+        ticketText += border + '\n';
+    }
+
+    if (settings.dianCompliance2026) {
+        ticketText += centerText('SISTEMA POS ELECTRÓNICO DIAN 2026', width) + '\n';
+        const resolucion = settings.resolucionDIAN || 'Sin resolución registrada';
+        ticketText += centerText(`Resolución DIAN: ${resolucion}`, width) + '\n';
+        ticketText += centerText('No aplica Retenciones en POS', width) + '\n';
+        if (cudeLocal) {
+            ticketText += centerText(`CUDE: ${cudeLocal}`, width) + '\n';
+        }
     }
     
     ticketText += centerText('¡GRACIAS POR SU COMPRA!', width) + '\n';

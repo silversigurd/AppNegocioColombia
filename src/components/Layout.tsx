@@ -28,8 +28,7 @@ export default function Layout() {
     const { user, logout } = useAuth();
     const { settings } = useSettings();
 
-    // Use base64 encoded logo injected from the DB via IPC to bypass file:/// restrictions
-    const logoUrl = settings.logoBase64 || null;
+
 
     return (
         <div className="flex h-screen w-full bg-slate-50 text-slate-800">
@@ -37,11 +36,7 @@ export default function Layout() {
             <aside className="no-print w-64 h-full bg-white border-r border-slate-200 shadow-xl flex flex-col z-10 transition-all duration-300">
                 <div className="p-6 flex items-center gap-3 border-b border-slate-100">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-primary-400 flex items-center justify-center text-white shadow-lg shadow-primary-500/30 overflow-hidden shrink-0">
-                        {logoUrl ? (
-                            <img src={logoUrl} alt="logo" className="w-full h-full object-cover" />
-                        ) : (
-                            <StoreIcon />
-                        )}
+                        <StoreIcon />
                     </div>
                     <div className="min-w-0">
                         <h1 className="font-bold text-lg leading-tight text-slate-900 truncate">{settings.businessName}</h1>

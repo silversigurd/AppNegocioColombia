@@ -35,6 +35,7 @@ export default function POS() {
     const [loading, setLoading] = useState(true);
     const [clienteIden, setClienteIden] = useState(''); // For large sales identification
     const [consumoTransparente, setConsumoTransparente] = useState(false);
+    const [medioPago, setMedioPago] = useState('EFECTIVO');
 
     // Last Sale Info for Printing
     const [lastSale, setLastSale] = useState<any>(null);
@@ -125,6 +126,12 @@ export default function POS() {
         let totalInternos = 0;
         let finalTotal = 0;
 
+        // DIAN extended taxes
+        let totalIva19 = 0;
+        let totalIva5 = 0;
+        let totalIpoc8 = 0;
+        let totalImpSaludable = 0;
+
         cart.forEach(item => {
             const itemTotal = item.precio_venta * item.quantity;
             if (settings.pais === 'Colombia') {
@@ -160,6 +167,12 @@ export default function POS() {
                 totalIVA += iva;
                 totalInternos += internos;
                 finalTotal += itemTotal;
+
+                // Accumulate DIAN specifics
+                if (ivaRate === 0.19) totalIva19 += iva;
+                if (ivaRate === 0.05) totalIva5 += iva;
+                totalIpoc8 += neto * ipocRate;
+                totalImpSaludable += neto * impSaludableRate;
             } else if (settings.arcaCompliance2026) {
                 // Argentina ARCA
                 const ivaAlic = item.iva_alicuota || 21;
@@ -185,11 +198,15 @@ export default function POS() {
             subtotal: totalNeto,
             impuestos: totalIVA,
             impuestos_internos: totalInternos,
-            total: finalTotal
+            total: finalTotal,
+            iva_19: totalIva19 || 0,
+            iva_5: totalIva5 || 0,
+            ipoc_8: totalIpoc8 || 0,
+            imp_saludable: totalImpSaludable || 0
         };
     };
 
-    const { subtotal, impuestos, impuestos_internos, total } = calculateTotals();
+    const { subtotal, impuestos, impuestos_internos, total, iva_19, iva_5, ipoc_8, imp_saludable } = calculateTotals();
 
     const confirmPayment = async () => {
         if (cart.length === 0) return;
@@ -215,6 +232,13 @@ export default function POS() {
                 cliente_identificacion: clienteIden || null,
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 sucursal_id: 1,
+                // DIAN 2026 specifics
+                medio_pago: medioPago,
+                dianCompliance2026: settings.dianCompliance2026,
+                iva_19,
+                iva_5,
+                ipoc_8,
+                imp_saludable,
                 items: cart.map(item => ({
                     producto_id: item.id,
                     cantidad: item.quantity,
@@ -236,6 +260,12 @@ export default function POS() {
                 impuestos_internos,
                 cliente_identificacion: clienteIden,
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
+                medio_pago: medioPago,
+                cude_local: settings.dianCompliance2026 ? 'preview_only' : null,
+                iva_19,
+                iva_5,
+                ipoc: ipoc_8,
+                imp_saludable,
                 vendedor: user?.username === 'Principal' 
                     ? (user?.nombre_propietario || user?.username || 'Sistema')
                     : (user?.empleado_nombre || user?.username || 'Sistema')
@@ -349,6 +379,22 @@ export default function POS() {
                                         onChange={(e) => setClienteIden(e.target.value)}
                                     />
                                 </div>
+                                {settings.dianCompliance2026 && (
+                                    <div className="relative">
+                                        <PaymentsIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" sx={{ fontSize: 16 }} />
+                                        <select
+                                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:border-primary-400 focus:ring-2 focus:ring-primary-50 outline-none appearance-none"
+                                            value={medioPago}
+                                            onChange={e => setMedioPago(e.target.value)}
+                                        >
+                                            <option value="EFECTIVO">Efectivo</option>
+                                            <option value="TARJETA_CREDITO">Tarjeta de Crédito</option>
+                                            <option value="TARJETA_DEBITO">Tarjeta de Débito</option>
+                                            <option value="TRANSFERENCIA">Transferencia</option>
+                                            <option value="APPS">Billetera Virtual (Nequi, DaviPlata, etc)</option>
+                                        </select>
+                                    </div>
+                                )}
                                 {settings.pais === 'Argentina' && settings.arcaCompliance2026 && (
                                     <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
                                         <input
@@ -363,7 +409,7 @@ export default function POS() {
                                         </label>
                                     </div>
                                 )}
-                                {settings.pais === 'Colombia' && (
+                                {settings.pais === 'Colombia' && settings.dianCompliance2026 && (
                                     <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                                         <p className="text-[9px] font-bold text-emerald-700 uppercase">Cumplimiento DIAN POS 2026 Activo</p>

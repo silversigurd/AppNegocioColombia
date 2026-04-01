@@ -52,14 +52,20 @@ async function setupIpcHandlers() {
 
     // --- GUARDAR VENTA ---
     ipcMain.handle('save-venta', async (event, saleData) => {
-        const { total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia, items } = saleData;
+        const { total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia, items,
+                medio_pago, dianCompliance2026, iva_19, iva_5, ipoc_8, imp_saludable } = saleData;
+
+        const cude_local = dianCompliance2026 ? crypto.randomUUID() : null;
 
         return new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
 
-                const stmtVenta = db.prepare('INSERT INTO Ventas (total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-                stmtVenta.run(total, subtotal, impuestos, impuestos_internos || 0, cliente_id || null, cliente_identificacion || null, sucursal_id, regimen_transparencia ? 1 : 0, function (err) {
+                const stmtVenta = db.prepare('INSERT INTO Ventas (total, subtotal, impuestos, impuestos_internos, cliente_id, cliente_identificacion, sucursal_id, regimen_transparencia, medio_pago, cude_local, iva_19, iva_5, ipoc, imp_saludable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                stmtVenta.run(
+                    total, subtotal, impuestos, impuestos_internos || 0, cliente_id || null, cliente_identificacion || null, sucursal_id, regimen_transparencia ? 1 : 0, 
+                    medio_pago || 'EFECTIVO', cude_local, iva_19 || 0, iva_5 || 0, ipoc_8 || 0, imp_saludable || 0, 
+                    function (err) {
                     if (err) {
                         db.run('ROLLBACK');
                         return reject(err);

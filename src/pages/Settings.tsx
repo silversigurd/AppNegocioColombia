@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ipc } from '../utils/ipc';
 import { useSettings } from '../context/SettingsContext';
 import SaveIcon from '@mui/icons-material/Save';
-import UploadIcon from '@mui/icons-material/Upload';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import PrintIcon from '@mui/icons-material/Print';
@@ -31,43 +30,9 @@ export default function Settings() {
         resolucionDIAN: settings.resolucionDIAN || '',
     });
 
-    const [logoPreview, setLogoPreview] = useState<string | null>(settings.logoBase64 || null);
-    const [selectedLogoPath, setSelectedLogoPath] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [taxIdError, setTaxIdError] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        setForm({
-            businessName: settings.businessName,
-            businessNit: settings.businessNit,
-            businessAddress: settings.businessAddress,
-            tagline: settings.tagline,
-            printerProfile: settings.printerProfile,
-            pais: 'Colombia',
-            hrEmpresaSize: settings.hrEmpresaSize,
-            dianCompliance2026: settings.dianCompliance2026,
-            // Colombia 2026
-            tieneCafeteria: settings.tieneCafeteria ?? false,
-            esResponsableIVA: settings.esResponsableIVA ?? true,
-            municipio: settings.municipio || 'Bogotá D.C.',
-            tasaICA: settings.tasaICA || 11.04,
-            resolucionDIAN: settings.resolucionDIAN || '',
-        });
-        setLogoPreview(settings.logoBase64 || null);
-        setSelectedLogoPath(null);
-    }, [settings]);
-
-    const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setLogoPreview(URL.createObjectURL(file));
-        const electronFile = file as any;
-        if (electronFile.path) {
-            setSelectedLogoPath(electronFile.path);
-        }
-    };
 
     const handleTaxIdChange = (val: string) => {
         // Colombia NIT logic: 9 digits base + 1 verification digit (DV) = 10 total
@@ -89,19 +54,8 @@ export default function Settings() {
         setSaving(true);
         setSaved(false);
         try {
-            let logoPath = settings.logoPath;
-
-            if (selectedLogoPath) {
-                const result = await ipc.invoke('save-logo', selectedLogoPath);
-                if (result.success) {
-                    logoPath = result.logoPath;
-                    setSelectedLogoPath(null);
-                }
-            }
-
             await ipc.invoke('save-settings', {
-                ...form,
-                ...(logoPath ? { logoPath } : {}),
+                ...form
             });
 
             await reloadSettings();
@@ -136,46 +90,7 @@ export default function Settings() {
 
             <div className="space-y-6 pb-12">
 
-                {/* Removed Localización Section to lock exclusively to Colombia */}
-                {/* Logo Section */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                        <StorefrontIcon fontSize="small" /> Logo del Comercio
-                    </h2>
-                    <div className="flex items-center gap-6">
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 hover:border-primary-400 bg-slate-50 hover:bg-primary-50 flex items-center justify-center cursor-pointer transition-all overflow-hidden group"
-                        >
-                            {logoPreview ? (
-                                <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" />
-                            ) : (
-                                <div className="text-center text-slate-400 group-hover:text-primary-500 transition-colors p-2">
-                                    <UploadIcon />
-                                    <p className="text-[10px] font-bold mt-1">Subir logo</p>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-700 mb-1">Imagen del logo</p>
-                            <p className="text-xs text-slate-500 mb-3">Se muestra en reportes y tickets.</p>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                            >
-                                <UploadIcon fontSize="small" /> Seleccionar imagen...
-                            </button>
-                        </div>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleLogoSelect}
-                        />
-                    </div>
-                </div>
+
 
                 {/* Business Info */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -190,6 +105,16 @@ export default function Settings() {
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                 value={form.businessName}
                                 onChange={e => setForm({ ...form, businessName: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Tipo de Comercio</label>
+                            <input
+                                type="text"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                value={form.tagline || ''}
+                                placeholder="Ej: Administración Almacén"
+                                onChange={e => setForm({ ...form, tagline: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">

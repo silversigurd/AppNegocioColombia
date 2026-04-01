@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
-import GroupIcon from '@mui/icons-material/Group';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -10,6 +9,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import Ticket from '../components/Ticket';
 import PedidoTicket from '../components/PedidoTicket';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 
 // --- COMPONENTES AUXILIARES ---
@@ -59,6 +59,15 @@ export default function Dashboard() {
     const [movimientos, setMovimientos] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
+    const { settings } = useSettings();
+
+    const formatCurrency = (amount: number) => {
+        return amount.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', {
+            style: 'currency',
+            currency: settings.pais === 'Colombia' ? 'COP' : 'ARS',
+            minimumFractionDigits: 0
+        });
+    };
 
 
     // Ticket View State
@@ -174,7 +183,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KpiCard
                     title="Ventas del Día"
-                    value={`$${stats.ventasHoy.toLocaleString('es-AR')}`}
+                    value={formatCurrency(stats.ventasHoy)}
                     trend="+12%"
                     positive={true}
                     icon={<TrendingUpIcon className="text-emerald-500" />}
@@ -270,7 +279,7 @@ export default function Dashboard() {
                                             <span className="text-[10px] font-black uppercase text-slate-400">{new Date(mov.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                                             <span className="text-[10px] text-slate-300">•</span>
                                             <span className={`text-xs font-black ${mov.tipo === 'INGRESO' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {mov.tipo === 'INGRESO' ? '+' : '-'}${mov.monto.toLocaleString('es-AR')}
+                                                {mov.tipo === 'INGRESO' ? '+' : '-'}{formatCurrency(mov.monto)}
                                             </span>
                                         </div>
                                     </div>
@@ -301,7 +310,7 @@ export default function Dashboard() {
                                     Detalle de Ticket #{selectedTicketData.id}
                                 </h2>
                                 <p className="text-[10px] font-black uppercase text-slate-400 mt-1">
-                                    {new Date(selectedTicketData.fecha).toLocaleString('es-AR')}
+                                    {new Date(selectedTicketData.fecha).toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR')}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -325,11 +334,11 @@ export default function Dashboard() {
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-slate-700">{item.producto_nombre}</p>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                                                {item.cantidad} x ${item.precio_unitario.toLocaleString('es-AR')}
+                                                {item.cantidad} x {formatCurrency(item.precio_unitario)}
                                             </p>
                                         </div>
                                         <p className="text-sm font-black text-slate-800">
-                                            ${item.subtotal.toLocaleString('es-AR')}
+                                            {formatCurrency(item.subtotal)}
                                         </p>
                                     </div>
                                 ))}
@@ -338,15 +347,21 @@ export default function Dashboard() {
                             <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
                                 <div className="flex justify-between text-xs font-bold text-slate-500">
                                     <span>Subtotal</span>
-                                    <span>${selectedTicketData.subtotal.toLocaleString('es-AR')}</span>
+                                    <span>{formatCurrency(selectedTicketData.subtotal)}</span>
                                 </div>
                                 <div className="flex justify-between text-xs font-bold text-slate-500">
                                     <span>IVA / Impuestos</span>
-                                    <span>${selectedTicketData.impuestos.toLocaleString('es-AR')}</span>
+                                    <span>{formatCurrency(selectedTicketData.impuestos)}</span>
                                 </div>
+                                {selectedTicketData.medio_pago && (
+                                    <div className="flex justify-between text-xs font-bold text-slate-500">
+                                        <span>Medio de Pago</span>
+                                        <span className="text-primary-700">{selectedTicketData.medio_pago}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-lg font-black text-slate-800 pt-2 border-t border-slate-200">
                                     <span>TOTAL</span>
-                                    <span className="text-primary-600">${selectedTicketData.total.toLocaleString('es-AR')}</span>
+                                    <span className="text-primary-600">{formatCurrency(selectedTicketData.total)}</span>
                                 </div>
                             </div>
 

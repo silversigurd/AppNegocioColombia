@@ -298,9 +298,9 @@ async function initDb() {
     await dbRun(`ALTER TABLE Ventas ADD COLUMN impuestos_internos REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN cliente_identificacion TEXT`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN regimen_transparencia BOOLEAN DEFAULT 0`).catch(() => { });
-    // Colombia 2026: Campos obligatorios Anexo Técnico 1.9
-    await dbRun(`ALTER TABLE Ventas ADD COLUMN medio_pago TEXT DEFAULT 'EFECTIVO'`).catch(() => { });
+
     await dbRun(`ALTER TABLE Ventas ADD COLUMN cude_local TEXT`).catch(() => { });
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN medio_pago TEXT DEFAULT 'EFECTIVO'`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN es_b2b INTEGER DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN iva_19 REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN iva_5 REAL DEFAULT 0`).catch(() => { });

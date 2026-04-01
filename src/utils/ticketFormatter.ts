@@ -4,32 +4,51 @@ export function getProfileWidth(profile: PrintProfile | string): number {
     return profile === '58mm' ? 30 : 42;
 }
 
+export function wrapText(text: string, width: number): string[] {
+    const lines: string[] = [];
+    let current = text;
+    while (current.length > 0) {
+        if (current.length <= width) {
+            lines.push(current);
+            break;
+        }
+        let pos = current.lastIndexOf(' ', width);
+        if (pos <= 0) pos = width;
+        lines.push(current.substring(0, pos).trim());
+        current = current.substring(pos).trim();
+    }
+    return lines;
+}
+
 export function centerText(text: string, width: number): string {
-    if (text.length >= width) return text.substring(0, width);
-    const padding = Math.floor((width - text.length) / 2);
-    return ' '.repeat(padding) + text + ' '.repeat(width - text.length - padding);
+    const lines = wrapText(text, width);
+    return lines.map(line => {
+        const padding = Math.floor((width - line.length) / 2);
+        return ' '.repeat(Math.max(0, padding)) + line + ' '.repeat(Math.max(0, width - line.length - padding));
+    }).join('\n');
 }
 
 export function formatItemLine(qty: string | number, name: string, priceText: string, width: number): string {
-    // Format: " 1x Product Name ...... $10.00"
-    const qtyStr = String(qty).padStart(2, ' ') + 'x ';
-    const priceLen = priceText.length;
+    // Professional POS format:
+    // Product Name (wrapped)
+    //   Qty x Price               Total
+    
+    // We don't have UnitPrice here, but we can just show:
+    // Product Name (wrapped)
+    //   Qty units               $Total
+    
+    const lines = wrapText(name, width - 2); // 2 spaces indent
+    let result = '';
+    lines.forEach(line => {
+        result += line + '\n';
+    });
 
-    // space needed: qty space + price space + 1 space before price
-    const availableSpace = width - qtyStr.length - priceLen - 1;
-
-    let finalName = name;
-    let dots = '';
-
-    if (name.length > availableSpace) {
-        // Truncate name and add "."
-        finalName = name.substring(0, availableSpace) + '.';
-    } else {
-        finalName = name;
-        dots = '.'.repeat(availableSpace - name.length);
-    }
-
-    return `${qtyStr}${finalName}${dots} ${priceText}`;
+    const qtyStr = `${qty} uni.`;
+    const padding = width - qtyStr.length - priceText.length;
+    const spaces = padding > 0 ? ' '.repeat(padding) : ' ';
+    
+    result += `${qtyStr}${spaces}${priceText}`;
+    return result;
 }
 
 export function divider(width: number, char: string = '-'): string {
