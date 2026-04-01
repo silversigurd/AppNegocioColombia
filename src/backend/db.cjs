@@ -411,4 +411,4 @@ async function initDb() {
 // Exportamos una promesa que indica cuando la DB está lista
 const dbReady = initDb();
 
-module.exports = { db, dbReady };
+module.exports = { db, dbReady, dbPath };

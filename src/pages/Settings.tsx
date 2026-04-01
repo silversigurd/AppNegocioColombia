@@ -6,6 +6,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import PrintIcon from '@mui/icons-material/Print';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import FolderIcon from '@mui/icons-material/Folder';
 import { ICA_POR_MUNICIPIO, UVT_2026, SMMLV_2026, AUX_TRANSPORTE_2026 } from '../utils/colombiaConstants';
 
 
@@ -273,6 +274,22 @@ export default function Settings() {
                     </div>
                 </div>
 
+                {/* Copia de Seguridad */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 border-l-4 border-l-blue-400">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                        <FolderIcon fontSize="small" className="text-blue-500" /> Copia de Seguridad
+                    </h2>
+                    <p className="text-xs text-slate-500 mb-4">
+                        Haz clic en el botón de abajo para abrir la carpeta donde se guarda tu base de datos.
+                        Desde allí puedes copiar el archivo <code className="bg-slate-100 px-1 rounded text-primary-700 font-bold">commerce_data.sqlite</code> a un USB para respaldo.
+                    </p>
+                    <button
+                        onClick={() => ipc.invoke('open-db-folder')}
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-blue-200 active:scale-95 text-xs"
+                    >
+                        <FolderIcon fontSize="small" /> Abrir Carpeta de Base de Datos
+                    </button>
+                </div>
 
             </div>
         </div>

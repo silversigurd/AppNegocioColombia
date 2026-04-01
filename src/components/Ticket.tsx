@@ -11,13 +11,14 @@ interface TicketProps {
     impuestos?: number;
     cliente_identificacion?: string;
     vendedor?: string;
+    medio_pago?: string;
     ventaData?: any;
     onClose?: () => void;
 }
 
 export default function Ticket({
     id, fecha, items, total, subtotal, impuestos,
-    cliente_identificacion, vendedor, ventaData
+    cliente_identificacion, vendedor, medio_pago, ventaData
 }: TicketProps) {
     // Read live settings from DB instead of static config.json
     const { settings } = useSettings();
@@ -32,11 +33,20 @@ export default function Ticket({
     const ticketVendedor = ventaData?.vendedor ?? vendedor;
     // Colombia 2026 fields
     const cudeLocal = ventaData?.cude_local;
-    const medioPago = ventaData?.medio_pago;
+    const medioPagoRaw = ventaData?.medio_pago || ventaData?.medioPago || medio_pago || 'EFECTIVO';
     const iva19 = ventaData?.iva_19 ?? 0;
     const iva5 = ventaData?.iva_5 ?? 0;
     const ipoc = ventaData?.ipoc ?? 0;
     const impSaludable = ventaData?.imp_saludable ?? 0;
+
+    const medioPagoMap: Record<string, string> = {
+        'EFECTIVO': 'EFECTIVO',
+        'TARJETA_CREDITO': 'TARJETA DE CRÉDITO',
+        'TARJETA_DEBITO': 'TARJETA DE DÉBITO',
+        'TRANSFERENCIA': 'TRANSFERENCIA',
+        'APPS': 'BILLETERA VIRTUAL'
+    };
+    const medioPago = medioPagoMap[String(medioPagoRaw).toUpperCase()] || medioPagoRaw;
 
     const width = getProfileWidth(settings.printerProfile || '80mm');
     const border = divider(width, '-');
@@ -108,6 +118,7 @@ export default function Ticket({
         if (cudeLocal) {
             ticketText += centerText(`CUDE: ${cudeLocal}`, width) + '\n';
         }
+        ticketText += border + '\n';
     }
     
     ticketText += centerText('¡GRACIAS POR SU COMPRA!', width) + '\n';

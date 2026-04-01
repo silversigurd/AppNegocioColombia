@@ -10,14 +10,15 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import SaveIcon from '@mui/icons-material/Save';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { ipc } from '../utils/ipc';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
-    SMMLV_2026, AUX_TRANSPORTE_2026, TOPE_EXONERACION_EMPLEADOR, 
+    AUX_TRANSPORTE_2026, TOPE_EXONERACION_EMPLEADOR, 
     INDEM_BAJO_PRIMER_ANO, INDEM_BAJO_SIGUIENTES, INDEM_ALTO_PRIMER_ANO, INDEM_ALTO_SIGUIENTES, 
-    PERIODO_PRUEBA_MESES, PRESTACIONES, TOPE_AUX_TRANSPORTE, APORTES_EMPLEADO_2026,
+    PRESTACIONES, TOPE_AUX_TRANSPORTE, APORTES_EMPLEADO_2026,
     getDivisorHoras, getValorHoraOrdinaria, RECARGOS_2026
 } from '../utils/colombiaConstants';
 
@@ -436,6 +437,7 @@ export default function Branches() {
     };
 
     const openAdminModal = async (emp: Empleado) => {
+        setNovedadesMes({ heDiurnas: 0, heNocturnas: 0, recNocturno: 0, dominicales: 0 });
         setSelectedEmpleado(emp);
         setIsAdminOpen(true);
         if (emp.id) {
@@ -489,7 +491,6 @@ export default function Branches() {
             }
 
             // Novedades y Recargos (CST 2026)
-            const divisor = getDivisorHoras(ahora);
             const valorHora = getValorHoraOrdinaria(basico, ahora);
             
             if (novedadesMes.recNocturno > 0) {
@@ -604,9 +605,8 @@ export default function Branches() {
 
         doc.setFont('helvetica', 'normal');
         const idLabel = settings.pais === 'Colombia' ? 'Cédula' : 'DNI';
-        const idValue = settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.dni || '________') : (emp.dni || '________');
+        const idValue = settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || '________') : (emp.dni || '________');
         
-        const locName = settings.pais === 'Colombia' ? 'Colombia' : 'La Plata';
         let text = `Por medio de la presente, yo ${emp.nombre}, ${idLabel} ${idValue}, dejo constancia de que he solicitado a la empresa ${settings.businessName || 'Comercio Pepito'} la posibilidad de percibir una compensación económica de $${montoStr} a cambio de no gozar de ${vacationData.dias} días de vacaciones correspondientes al período ${vacationData.periodo}.`;
 
         const splitText = doc.splitTextToSize(text, 500);
@@ -813,8 +813,8 @@ export default function Branches() {
                                     <div className="w-1/3">
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Modalidad</label>
                                         <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold" value={formData.modalidad_contratacion || 'Formal'} onChange={e => setFormData({ ...formData, modalidad_contratacion: e.target.value })}>
-                                            <option value="Formal">Formal (Registrado)</option>
-                                            <option value="Informal">Informal (No Registrado)</option>
+                                            <option value="Formal">Registrado</option>
+                                            <option value="Informal">No registrado</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1015,30 +1015,73 @@ export default function Branches() {
                                         </div>
 
                                         {settings.pais === 'Colombia' && (
-                                            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                                                <p className="text-xs font-bold text-emerald-800 uppercase mb-3">Novedades del Mes (Horas Extra y Recargos CST 2026)</p>
-                                                <p className="text-[10px] text-emerald-600 mb-2 font-mono">Divisor horas: {getDivisorHoras(new Date())} | Valor ordinario: $ {getValorHoraOrdinaria(Number(selectedEmpleado.sueldo_basico) || 0, new Date()).toLocaleString('es-CO', {maximumFractionDigits:0})}</p>
-                                                <div className="grid grid-cols-4 gap-3">
-                                                    <div>
-                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">Rec. Nocturno (35%)</label>
-                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
-                                                            value={novedadesMes.recNocturno} onChange={e => setNovedadesMes({...novedadesMes, recNocturno: Number(e.target.value)})} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">H.E. Diurna (25%)</label>
-                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
-                                                            value={novedadesMes.heDiurnas} onChange={e => setNovedadesMes({...novedadesMes, heDiurnas: Number(e.target.value)})} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">H.E. Nocturna (75%)</label>
-                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
-                                                            value={novedadesMes.heNocturnas} onChange={e => setNovedadesMes({...novedadesMes, heNocturnas: Number(e.target.value)})} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] text-emerald-700 mb-1 font-bold">Dominical (90%)</label>
-                                                        <input type="number" step="0.5" className="w-full p-2 text-sm border-emerald-200 rounded-lg outline-none focus:ring-emerald-300" 
-                                                            value={novedadesMes.dominicales} onChange={e => setNovedadesMes({...novedadesMes, dominicales: Number(e.target.value)})} />
-                                                    </div>
+                                            <div className="mb-6 p-5 bg-emerald-50 border border-emerald-100 rounded-3xl shadow-inner-sm">
+                                                <p className="text-[11px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2">
+                                                    <CheckCircleIcon sx={{ fontSize: 16 }} /> Novedades del Mes (Horas Extra y Recargos CST 2026)
+                                                </p>
+                                                <p className="text-[10px] text-emerald-600 mb-4 font-mono bg-white/50 inline-block px-2 py-1 rounded-lg border border-emerald-100/50">
+                                                    Divisor horas: {getDivisorHoras(new Date())} | Valor ordinario: $ {getValorHoraOrdinaria(Number(selectedEmpleado.sueldo_basico) || 0, new Date()).toLocaleString('es-CO', {maximumFractionDigits:0})}
+                                                </p>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                    {(() => {
+                                                        const vh = getValorHoraOrdinaria(Number(selectedEmpleado.sueldo_basico) || 0, new Date());
+                                                        return (
+                                                            <>
+                                                                <div className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                                    <label className="block text-[10px] text-emerald-600 mb-1.5 font-bold uppercase tracking-tight">Rec. Nocturno (35%)</label>
+                                                                    <input type="number" step="1" min="0" placeholder="0" className="w-full p-2.5 text-lg font-black text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 focus:bg-white transition-all text-center" 
+                                                                        value={novedadesMes.recNocturno === 0 ? '' : novedadesMes.recNocturno} 
+                                                                        onFocus={(e) => e.target.select()}
+                                                                        onChange={e => {
+                                                                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                                                            if (!isNaN(val)) setNovedadesMes({...novedadesMes, recNocturno: val});
+                                                                        }} />
+                                                                    <p className="text-[9px] font-bold text-emerald-500 mt-1.5 text-center leading-tight">
+                                                                        + ${Math.round((novedadesMes.recNocturno || 0) * vh * RECARGOS_2026.NOCTURNO).toLocaleString('es-CO')}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                                    <label className="block text-[10px] text-emerald-600 mb-1.5 font-bold uppercase tracking-tight">H.E. Diurna (25%)</label>
+                                                                    <input type="number" step="1" min="0" placeholder="0" className="w-full p-2.5 text-lg font-black text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 focus:bg-white transition-all text-center" 
+                                                                        value={novedadesMes.heDiurnas === 0 ? '' : novedadesMes.heDiurnas} 
+                                                                        onFocus={(e) => e.target.select()}
+                                                                        onChange={e => {
+                                                                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                                                            if (!isNaN(val)) setNovedadesMes({...novedadesMes, heDiurnas: val});
+                                                                        }} />
+                                                                    <p className="text-[9px] font-bold text-emerald-500 mt-1.5 text-center leading-tight">
+                                                                        + ${Math.round((novedadesMes.heDiurnas || 0) * vh * (1 + RECARGOS_2026.HORA_EXTRA_DIURNA)).toLocaleString('es-CO')}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                                    <label className="block text-[10px] text-emerald-600 mb-1.5 font-bold uppercase tracking-tight">H.E. Nocturna (75%)</label>
+                                                                    <input type="number" step="1" min="0" placeholder="0" className="w-full p-2.5 text-lg font-black text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 focus:bg-white transition-all text-center" 
+                                                                        value={novedadesMes.heNocturnas === 0 ? '' : novedadesMes.heNocturnas} 
+                                                                        onFocus={(e) => e.target.select()}
+                                                                        onChange={e => {
+                                                                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                                                            if (!isNaN(val)) setNovedadesMes({...novedadesMes, heNocturnas: val});
+                                                                        }} />
+                                                                    <p className="text-[9px] font-bold text-emerald-500 mt-1.5 text-center leading-tight">
+                                                                        + ${Math.round((novedadesMes.heNocturnas || 0) * vh * (1 + RECARGOS_2026.HORA_EXTRA_NOCTURNA)).toLocaleString('es-CO')}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                                    <label className="block text-[10px] text-emerald-600 mb-1.5 font-bold uppercase tracking-tight">Dominical (90%)</label>
+                                                                    <input type="number" step="1" min="0" placeholder="0" className="w-full p-2.5 text-lg font-black text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 focus:bg-white transition-all text-center" 
+                                                                        value={novedadesMes.dominicales === 0 ? '' : novedadesMes.dominicales} 
+                                                                        onFocus={(e) => e.target.select()}
+                                                                        onChange={e => {
+                                                                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                                                            if (!isNaN(val)) setNovedadesMes({...novedadesMes, dominicales: val});
+                                                                        }} />
+                                                                    <p className="text-[9px] font-bold text-emerald-500 mt-1.5 text-center leading-tight">
+                                                                        + ${Math.round((novedadesMes.dominicales || 0) * vh * (1 + RECARGOS_2026.DOMINICAL_ORDINARIO)).toLocaleString('es-CO')}
+                                                                    </p>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         )}

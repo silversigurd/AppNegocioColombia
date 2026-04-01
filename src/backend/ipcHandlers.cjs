@@ -1,5 +1,5 @@
-const { ipcMain, app } = require('electron');
-const { db, dbReady } = require('./db.cjs');
+const { ipcMain, app, shell, dialog } = require('electron');
+const { db, dbReady, dbPath } = require('./db.cjs');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -644,6 +644,42 @@ async function setupIpcHandlers() {
         });
     });
 
+    ipcMain.handle('select-contrato-empleado', async (event, empleadoId) => {
+        try {
+            const { canceled, filePaths } = await dialog.showOpenDialog({
+                properties: ['openFile'],
+                filters: [{ name: 'Documentos PDF', extensions: ['pdf'] }]
+            });
+
+            if (canceled || filePaths.length === 0) {
+                return { success: false, error: 'Cancelado' };
+            }
+
+            const sourcePath = filePaths[0];
+            const userDataPath = app.getPath('userData');
+            const contractsDir = path.join(userDataPath, 'contratos_rrhh');
+
+            if (!fs.existsSync(contractsDir)) {
+                fs.mkdirSync(contractsDir, { recursive: true });
+            }
+
+            const fileName = `contrato_${empleadoId}_${Date.now()}${path.extname(sourcePath)}`;
+            const destPath = path.join(contractsDir, fileName);
+
+            fs.copyFileSync(sourcePath, destPath);
+
+            return new Promise((resolve, reject) => {
+                db.run('UPDATE Empleados SET contrato_filepath = ? WHERE id = ?', [destPath, empleadoId], function (err) {
+                    if (err) resolve({ success: false, error: err.message });
+                    else resolve({ success: true, filepath: destPath });
+                });
+            });
+        } catch (error) {
+            console.error('Error selecting contract:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('upload-contrato-empleado', async (event, sourcePath, empleadoId) => {
         try {
             const userDataPath = app.getPath('userData');
@@ -1000,6 +1036,30 @@ async function setupIpcHandlers() {
                 }
             );
         });
+    });
+
+    ipcMain.handle('abrir-archivo', async (event, filePath) => {
+        try {
+            if (!filePath || !fs.existsSync(filePath)) {
+                return { success: false, error: 'Archivo no encontrado en la ruta especificada.' };
+            }
+            const err = await shell.openPath(filePath);
+            if (err) return { success: false, error: err };
+            return { success: true };
+        } catch (error) {
+            console.error('Error opening file:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('open-db-folder', async () => {
+        try {
+            await shell.showItemInFolder(dbPath);
+            return { success: true };
+        } catch (error) {
+            console.error('Error opening DB folder:', error);
+            return { success: false, error: error.message };
+        }
     });
 
 }
