@@ -3,7 +3,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased overflow-hidden select-none;
+    @apply bg-slate-50 text-slate-900 font-sans antialiased overflow-hidden;
   }
 }
 

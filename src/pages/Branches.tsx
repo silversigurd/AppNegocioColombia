@@ -16,8 +16,9 @@ import { ipc } from '../utils/ipc';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
-    AUX_TRANSPORTE_2026, TOPE_EXONERACION_EMPLEADOR, 
-    INDEM_BAJO_PRIMER_ANO, INDEM_BAJO_SIGUIENTES, INDEM_ALTO_PRIMER_ANO, INDEM_ALTO_SIGUIENTES, 
+    AUX_TRANSPORTE_2026, TOPE_INDEM_BAJO,
+    INDEM_BAJO_PRIMER_ANO, INDEM_BAJO_1A5, INDEM_BAJO_5A10, INDEM_BAJO_MAS10,
+    INDEM_ALTO_PRIMER_ANO, INDEM_ALTO_SIGUIENTES, INDEM_FIJO_MIN_DIAS,
     PRESTACIONES, TOPE_AUX_TRANSPORTE, APORTES_EMPLEADO_2026,
     getDivisorHoras, getValorHoraOrdinaria, RECARGOS_2026
 } from '../utils/colombiaConstants';
@@ -101,39 +102,105 @@ export default function Branches() {
         let total = 0;
 
         if (settings.pais === 'Colombia') {
-            // LÓGICA COLOMBIA (CST Art. 64)
+            // LÓGICA COLOMBIA — Ley 2466 de 2025 / CST Art. 61, 62 y 64 (Reformado)
             const esIndefinido = emp.modalidad_contratacion?.includes('Indefinido') || emp.modalidad_contratacion === 'Formal';
             const esFijo = emp.modalidad_contratacion?.includes('Fijo') || emp.modalidad_contratacion?.includes('Obra');
+            const esInformal = emp.modalidad_contratacion === 'Informal' || emp.modalidad_contratacion === 'No registrado';
+            const salarioDia = basico / 30;
 
-            if (causal.includes('sin justa causa')) {
+            // Causales que generan indemnización por despido injusto (Art. 64 + Ley 2466)
+            const esDespidoInjusto = causal.includes('sin justa causa') || causal.includes('despido indirecto') || causal.includes('acoso');
+            // Causales por justa causa (Art. 62 CST) — NO generan indemnización
+            const esJustaCausa = causal.includes('justa causa') && !esDespidoInjusto;
+            // Causales legales sin indemnización (Art. 61 CST)
+            const esCausalLegal = causal.includes('Renuncia') || causal.includes('mutuo acuerdo') ||
+                                  causal.includes('expiración') || causal.includes('Terminación de la obra') ||
+                                  causal.includes('pensión') || causal.includes('Muerte');
+
+            if (esDespidoInjusto && !esInformal) {
                 if (esIndefinido) {
-                    let diasIndemnizacion = 0;
-                    if (basico < TOPE_EXONERACION_EMPLEADOR) {
-                        diasIndemnizacion = aniosTotales <= 1 ? INDEM_BAJO_PRIMER_ANO : INDEM_BAJO_PRIMER_ANO + (Math.floor(aniosTotales - 1) * INDEM_BAJO_SIGUIENTES);
+                    // Tabla de indemnización por tramos — Ley 2466/2025 Art. 64 CST
+                    let diasIndem = 0;
+                    const aniosCompletos = Math.floor(aniosTotales);
+                    const fraccionAnio = aniosTotales - aniosCompletos;
+
+                    if (basico < TOPE_INDEM_BAJO) {
+                        // Salario < 10 SMLMV
+                        if (aniosTotales < 1) {
+                            // Menos de 1 año: proporcional sobre 35 días
+                            diasIndem = INDEM_BAJO_PRIMER_ANO * aniosTotales;
+                        } else {
+                            diasIndem = INDEM_BAJO_PRIMER_ANO; // 35 días por el 1er año
+                            const aniosSubs = aniosCompletos - 1 + fraccionAnio;
+                            if (aniosCompletos < 5) {
+                                // Tramo 1–4 años extra: 15 días por año
+                                diasIndem += INDEM_BAJO_1A5 * aniosSubs;
+                            } else if (aniosCompletos < 10) {
+                                // Tramo 5–9 años extra: 30 días por año
+                                diasIndem += INDEM_BAJO_1A5 * 4; // primeros 4 años subs al 15
+                                diasIndem += INDEM_BAJO_5A10 * (aniosSubs - 4);
+                            } else {
+                                // 10+ años: 60 días por año
+                                diasIndem += INDEM_BAJO_1A5 * 4;  // 4 años al 15
+                                diasIndem += INDEM_BAJO_5A10 * 5; // 5 años al 30
+                                diasIndem += INDEM_BAJO_MAS10 * (aniosSubs - 9);
+                            }
+                        }
                     } else {
-                        diasIndemnizacion = aniosTotales <= 1 ? INDEM_ALTO_PRIMER_ANO : INDEM_ALTO_PRIMER_ANO + (Math.floor(aniosTotales - 1) * INDEM_ALTO_SIGUIENTES);
+                        // Salario ≥ 10 SMLMV
+                        if (aniosTotales < 1) {
+                            diasIndem = INDEM_ALTO_PRIMER_ANO * aniosTotales;
+                        } else {
+                            diasIndem = INDEM_ALTO_PRIMER_ANO + INDEM_ALTO_SIGUIENTES * (aniosTotales - 1);
+                        }
                     }
-                    const montoIndem = (basico / 30) * diasIndemnizacion;
-                    items.push({ concepto: 'Indemnización Despido Injusto (Art. 64 CST)', monto: montoIndem, detalle: `${diasIndemnizacion.toFixed(1)} días de salario` });
+
+                    const montoIndem = salarioDia * diasIndem;
+                    items.push({
+                        concepto: 'Indemnización Despido Injusto (Art. 64 CST — Ley 2466/2025)',
+                        monto: montoIndem,
+                        detalle: `${diasIndem.toFixed(1)} días × $${Math.round(salarioDia).toLocaleString('es-CO')} | ${aniosTotales.toFixed(2)} años de servicio`
+                    });
                     total += montoIndem;
+
                 } else if (esFijo) {
-                    items.push({ concepto: 'Indemnización Contrato Fijo/Obra', monto: 0, detalle: 'Equivale a salarios faltantes para cumplir el término (Cálculo Manual requerido).' });
+                    // Contratos fijo/obra: salarios pendientes, mínimo 45 días (Ley 2466)
+                    const indemMinFijo = salarioDia * INDEM_FIJO_MIN_DIAS;
+                    items.push({
+                        concepto: 'Indemnización Contrato Fijo/Obra (Art. 64 CST — Ley 2466/2025)',
+                        monto: indemMinFijo,
+                        detalle: `Mínimo legal: ${INDEM_FIJO_MIN_DIAS} días de salario ($${Math.round(indemMinFijo).toLocaleString('es-CO')}). Verificar días faltantes al vencimiento del contrato.`
+                    });
+                    total += indemMinFijo;
                 }
+            } else if (esJustaCausa) {
+                items.push({
+                    concepto: 'Despido con Justa Causa (Art. 62 CST)',
+                    monto: 0,
+                    detalle: 'No genera indemnización. Requiere debido proceso: mín. 5 días hábiles de defensa + audiencia de descargos.'
+                });
+            } else if (esCausalLegal) {
+                items.push({
+                    concepto: 'Terminación por Causal Legal (Art. 61 CST)',
+                    monto: 0,
+                    detalle: `Causal: ${causal}. Solo se liquidan prestaciones sociales.`
+                });
             }
 
-            // Prestaciones Sociales Proporcionales (Liquidación de Ley)
-            const mesesTrans = (totalDays % 365.25) / 30.5;
-            const prima = (basico * mesesTrans) * PRESTACIONES.PRIMA_SERVICIOS;
-            const cesantias = (basico * mesesTrans) * PRESTACIONES.CESANTIAS;
-            const intereses = (cesantias * PRESTACIONES.INT_CESANTIAS * mesesTrans) / 12;
-            const vacaciones = (basico * (totalDays % 365.25)) / (1 / PRESTACIONES.VACACIONES);
+            // Prestaciones Sociales Proporcionales (Liquidación de Ley — siempre obligatorias)
+            const diasEnAnoActual = totalDays % 365.25;
+            const mesesEnAnoActual = diasEnAnoActual / 30;
+            const cesantias = (basico / 360) * totalDays;
+            const intereses = cesantias * PRESTACIONES.INT_CESANTIAS * (diasEnAnoActual / 360);
+            const prima = (basico / 360) * diasEnAnoActual;
+            const vacaciones = (basico / 720) * totalDays;
 
-            items.push({ concepto: 'Prima de Servicios Proporcional', monto: prima, detalle: 'Corte a la fecha de egreso' });
-            items.push({ concepto: 'Cesantías Proporcionales', monto: cesantias, detalle: 'Base de 1 mes por año' });
-            items.push({ concepto: 'Intereses sobre Cesantías', monto: intereses, detalle: '12% anual sobre saldo' });
-            items.push({ concepto: 'Vacaciones Proporcionales', monto: vacaciones, detalle: '15 días por año (divisor 720)' });
-            
-            total += prima + cesantias + intereses + vacaciones;
+            items.push({ concepto: 'Cesantías Proporcionales (1 mes/año)', monto: cesantias, detalle: `Base $${Math.round(basico).toLocaleString('es-CO')} × ${totalDays} días / 360` });
+            items.push({ concepto: 'Intereses sobre Cesantías (12% anual)', monto: intereses, detalle: `12% sobre $${Math.round(cesantias).toLocaleString('es-CO')} proporcional` });
+            items.push({ concepto: 'Prima de Servicios Proporcional', monto: prima, detalle: `Semestre en curso (${Math.round(mesesEnAnoActual * 10) / 10} meses)` });
+            items.push({ concepto: 'Vacaciones Proporcionales (15 días/año)', monto: vacaciones, detalle: `${totalDays} días trabajados / 720` });
+
+            total += cesantias + intereses + prima + vacaciones;
 
             return { items, total, anios: aniosTotales.toFixed(2), MRMNH: basico, isWithinTrial: totalDays <= 60, trialMonths: 2 };
 
@@ -218,7 +285,7 @@ export default function Branches() {
     const [formData, setFormData] = useState<Empleado>({
         nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
         localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Formal', telefono: ''
+        sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Indefinido', telefono: ''
     });
 
     useEffect(() => {
@@ -261,7 +328,7 @@ export default function Branches() {
             setFormData({
                 nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
                 localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
-                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Formal', telefono: ''
+                sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Indefinido', telefono: ''
             });
         }
         setIsFormOpen(true);
@@ -388,12 +455,15 @@ export default function Branches() {
 
     const handleDeleteEmpleadoClick = (emp: Empleado) => {
         if (!emp.id) return;
-        if (emp.modalidad_contratacion === 'Informal') {
+        const esInformal = emp.modalidad_contratacion === 'Informal' || emp.modalidad_contratacion === 'No registrado';
+        if (esInformal) {
             if (confirm(`¿Eliminar definitivamente a ${emp.nombre}? (Al ser informal se borrará por completo).`)) {
                 ipc.invoke('delete-empleado', emp.id).then(() => loadEmpleados());
             }
         } else {
-            const defaultCausal = 'Renuncia del trabajador (Art. 240 LCT)';
+            const defaultCausal = settings.pais === 'Colombia'
+                ? 'Renuncia voluntaria del trabajador (Art. 61 CST)'
+                : 'Renuncia del trabajador (Art. 240 LCT)';
             const defaultFecha = new Date().toISOString().slice(0, 10);
             setSelectedEmpleado(emp);
             setDesvinculacionData({ causal_egreso: defaultCausal, fecha_egreso: defaultFecha });
@@ -812,9 +882,20 @@ export default function Branches() {
                                     </div>
                                     <div className="w-1/3">
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Modalidad</label>
-                                        <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold" value={formData.modalidad_contratacion || 'Formal'} onChange={e => setFormData({ ...formData, modalidad_contratacion: e.target.value })}>
-                                            <option value="Formal">Registrado</option>
-                                            <option value="Informal">No registrado</option>
+                                        <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold" value={formData.modalidad_contratacion || 'Indefinido'} onChange={e => setFormData({ ...formData, modalidad_contratacion: e.target.value })}>
+                                            {settings.pais === 'Colombia' ? (
+                                                <>
+                                                    <option value="Indefinido">Indefinido (Ley 2466/2025)</option>
+                                                    <option value="Término Fijo">Término Fijo (máx. 4 años)</option>
+                                                    <option value="Obra o Labor">Obra o Labor Determinada</option>
+                                                    <option value="No registrado">No registrado (Informal)</option>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <option value="Formal">Registrado</option>
+                                                    <option value="Informal">No registrado</option>
+                                                </>
+                                            )}
                                         </select>
                                     </div>
                                 </div>
@@ -1179,13 +1260,37 @@ export default function Branches() {
 
                         <div className="p-6 overflow-y-auto flex-1 space-y-5">
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 text-sm">
-                                ⚠️ <strong>Historial Preservado:</strong> El empleado pasará al Historial de Bajas conservando datos y recibos. <br />
-                                {settings.pais === 'Colombia' ? (
-                                    <>⚖️ <strong>CST 2026:</strong> Cálculo estimativo basado en el Art. 64 (Indemnización). Verificable mediante planillas base.</>
-                                ) : (
-                                    <>⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.</>
-                                )}
+                                ⚠️ <strong>Historial Preservado:</strong> El empleado pasará al Historial de Bajas conservando datos y recibos.
                             </div>
+
+                            {settings.pais === 'Colombia' && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 text-xs space-y-2">
+                                    <p className="font-black text-sm text-blue-800 flex items-center gap-2">⚖️ Marco Legal — Ley 2466 de 2025 / CST 2026</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                            <p className="font-bold text-blue-700 mb-1">📋 Debido Proceso (Art. 7 Ley 2466)</p>
+                                            <p>Para despido con justa causa: mínimo <strong>5 días hábiles</strong> de defensa + audiencia de descargos. Su omisión convierte el despido en injusto.</p>
+                                        </div>
+                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                            <p className="font-bold text-blue-700 mb-1">🛡️ Fueros de Estabilidad</p>
+                                            <p><strong>Maternidad:</strong> Hasta 2 años del menor. <strong>Discapacidad:</strong> Requiere autorización Ministerio del Trabajo. <strong>Prepensionado:</strong> Protección hasta 3 años antes de pensionar.</p>
+                                        </div>
+                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                            <p className="font-bold text-blue-700 mb-1">😤 Acoso Laboral (Ley 2466/2025)</p>
+                                            <p>Un <strong>solo acto</strong> es suficiente para configurar acoso. Permite al trabajador invocar despido indirecto con derecho a indemnización completa.</p>
+                                        </div>
+                                        <div className="bg-white/60 rounded-lg p-2.5 border border-red-100">
+                                            <p className="font-bold text-red-700 mb-1">⏰ Sanción Moratoria (Art. 65 CST)</p>
+                                            <p>Si no paga la liquidación al día del egreso: <strong>1 día de salario por cada día de retraso</strong> (primeros 24 meses). Luego intereses moratorios.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {settings.pais !== 'Colombia' && (
+                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 text-sm">
+                                    ⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
+                                </div>
+                            )}
 
                             <form id="desvincularForm" onSubmit={handleConfirmDesvinculacion} className="grid grid-cols-2 gap-4">
                                 <div>
@@ -1196,11 +1301,27 @@ export default function Branches() {
                                         value={desvinculacionData.causal_egreso}
                                         onChange={e => handleDesvinculacionChange('causal_egreso', e.target.value)}
                                     >
-                                        <option value="Renuncia del trabajador (Art. 240 LCT)">Renuncia del trabajador (Art. 240 LCT)</option>
-                                        <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
-                                        <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
-                                        <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
-                                        <option value="Fin de periodo de prueba (Art. 92 bis)">Fin de periodo de prueba (Art. 92 bis)</option>
+                                        {settings.pais === 'Colombia' ? (
+                                            <>
+                                                <option value="Renuncia voluntaria del trabajador (Art. 61 CST)">Renuncia voluntaria (Art. 61 CST)</option>
+                                                <option value="Despido sin justa causa (Art. 64 CST — Ley 2466/2025)">Despido sin justa causa (Art. 64 CST)</option>
+                                                <option value="Despido con justa causa (Art. 62 CST)">Despido con justa causa (Art. 62 CST)</option>
+                                                <option value="Despido indirecto por acoso laboral (Ley 2466/2025)">Despido indirecto — acoso (Ley 2466/2025)</option>
+                                                <option value="Mutuo acuerdo entre las partes (Art. 61 CST)">Mutuo acuerdo (Art. 61 CST)</option>
+                                                <option value="Expiración del término fijo — no renovación (Art. 61 CST)">Expiración del término fijo (Art. 61 CST)</option>
+                                                <option value="Terminación de la obra o labor contratada (Art. 61 CST)">Terminación de obra o labor (Art. 61 CST)</option>
+                                                <option value="Reconocimiento de pensión (Art. 62 CST)">Reconocimiento de pensión (Art. 62 CST)</option>
+                                                <option value="Muerte del trabajador (Art. 61 CST)">Muerte del trabajador (Art. 61 CST)</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="Renuncia del trabajador (Art. 240 LCT)">Renuncia del trabajador (Art. 240 LCT)</option>
+                                                <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
+                                                <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
+                                                <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
+                                                <option value="Fin de periodo de prueba (Art. 92 bis)">Fin de periodo de prueba (Art. 92 bis)</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                                 <div>
@@ -1279,7 +1400,7 @@ export default function Branches() {
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Empleado</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Causal de Egreso</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Fecha Baja</th>
-                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">CUIL</th>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">{settings.pais === 'Colombia' ? 'Cédula / RUT' : 'CUIL'}</th>
                                         <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase">Acciones</th>
                                     </tr>
                                 </thead>
@@ -1289,7 +1410,7 @@ export default function Branches() {
                                             <td className="px-4 py-3 font-semibold text-slate-700">{emp.nombre}</td>
                                             <td className="px-4 py-3 text-slate-500">{emp.causal_egreso}</td>
                                             <td className="px-4 py-3 text-slate-500">{emp.fecha_egreso}</td>
-                                            <td className="px-4 py-3 font-mono text-slate-400">{emp.cuil}</td>
+                                            <td className="px-4 py-3 font-mono text-slate-400">{settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || '—') : emp.cuil}</td>
                                             <td className="px-4 py-3 text-right">
                                                 {emp.indemnizacion_json && (
                                                     <button

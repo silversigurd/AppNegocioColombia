@@ -162,15 +162,31 @@ export const ICA_POR_MUNICIPIO: Record<string, number> = {
 export const RETE_FUENTE_ESTIMADA = 0.025; // 2.5%
 
 // =============================================================
-// INDEMNIZACIONES POR DESPIDO INJUSTO (Art. 64 CST)
-// Salarios < 10 SMMLV: 30 días primer año, 20 por cada año siguiente
-// Salarios ≥ 10 SMMLV: 20 días primer año, 15 por cada año siguiente
+// INDEMNIZACIONES POR DESPIDO INJUSTO — LEY 2466 DE 2025 (Art. 64 CST reformado)
+// Vigente para contratos terminados desde julio de 2025
+//
+// Salarios INFERIOR a 10 SMLMV ($17.509.050):
+//   - Menos de 1 año:      35 días de salario
+//   - 1 año a < 5 años:    35 días + 15 días × (años_subsiguientes)
+//   - 5 años a < 10 años:  35 días + 30 días × (años_subsiguientes)
+//   - 10 años o más:       35 días + 60 días × (años_subsiguientes)
+//
+// Salarios IGUAL O SUPERIOR a 10 SMLMV:
+//   - Primer año:          20 días
+//   - Años siguientes:     15 días × (años_subsiguientes)
+//
+// Contratos término FIJO o OBRA: salarios pendientes, mínimo 45 días
 // =============================================================
-export const TOPE_INDEM_BAJO = SMMLV_2026 * 10; // $17.509.050
-export const INDEM_BAJO_PRIMER_ANO = 30;    // días
-export const INDEM_BAJO_SIGUIENTES = 20;    // días por año adicional
-export const INDEM_ALTO_PRIMER_ANO = 20;    // días
-export const INDEM_ALTO_SIGUIENTES = 15;    // días por año adicional
+export const TOPE_INDEM_BAJO = SMMLV_2026 * 10;   // $17.509.050
+export const INDEM_BAJO_PRIMER_ANO = 35;            // días (subió de 30 a 35 — Ley 2466)
+export const INDEM_BAJO_1A5 = 15;                   // días por año subsiguiente (tramo 1–4 años extra)
+export const INDEM_BAJO_5A10 = 30;                  // días por año subsiguiente (tramo 5–9 años extra)
+export const INDEM_BAJO_MAS10 = 60;                 // días por año subsiguiente (10+ años extra)
+export const INDEM_ALTO_PRIMER_ANO = 20;            // días (sin cambio)
+export const INDEM_ALTO_SIGUIENTES = 15;            // días por año adicional (sin cambio)
+
+// Piso mínimo para contratos a término fijo y obra (Ley 2466/2025)
+export const INDEM_FIJO_MIN_DIAS = 45;
 
 // Periodo de prueba (Art. 78 CST) — 2 meses para contratos indefinidos
 export const PERIODO_PRUEBA_MESES = 2;
