@@ -117,6 +117,19 @@ export default function Branches() {
                                   causal.includes('expiración') || causal.includes('Terminación de la obra') ||
                                   causal.includes('pensión') || causal.includes('Muerte');
 
+            if (causal.includes('Renuncia')) {
+                return {
+                    items: [
+                        { concepto: 'Renuncia Voluntaria', monto: 0, detalle: 'No genera pago de indemnización ni cálculo automático de prestaciones en esta vista.' }
+                    ],
+                    total: 0,
+                    anios: aniosTotales.toFixed(2),
+                    MRMNH: basico,
+                    isWithinTrial: false,
+                    trialMonths: 2
+                };
+            }
+
             if (esDespidoInjusto && !esInformal) {
                 if (esIndefinido) {
                     // Tabla de indemnización por tramos — Ley 2466/2025 Art. 64 CST
@@ -1265,22 +1278,22 @@ export default function Branches() {
 
                             {settings.pais === 'Colombia' && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 text-xs space-y-2">
-                                    <p className="font-black text-sm text-blue-800 flex items-center gap-2">⚖️ Marco Legal — Ley 2466 de 2025 / CST 2026</p>
+                                    <p className="font-black text-sm text-blue-800 flex items-center gap-2">Marco Legal — Ley 2466 de 2025 / CST 2026</p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">📋 Debido Proceso (Art. 7 Ley 2466)</p>
+                                            <p className="font-bold text-blue-700 mb-1">Debido Proceso (Art. 7 Ley 2466)</p>
                                             <p>Para despido con justa causa: mínimo <strong>5 días hábiles</strong> de defensa + audiencia de descargos. Su omisión convierte el despido en injusto.</p>
                                         </div>
                                         <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">🛡️ Fueros de Estabilidad</p>
+                                            <p className="font-bold text-blue-700 mb-1">Fueros de Estabilidad</p>
                                             <p><strong>Maternidad:</strong> Hasta 2 años del menor. <strong>Discapacidad:</strong> Requiere autorización Ministerio del Trabajo. <strong>Prepensionado:</strong> Protección hasta 3 años antes de pensionar.</p>
                                         </div>
                                         <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">😤 Acoso Laboral (Ley 2466/2025)</p>
+                                            <p className="font-bold text-blue-700 mb-1">Acoso Laboral (Ley 2466/2025)</p>
                                             <p>Un <strong>solo acto</strong> es suficiente para configurar acoso. Permite al trabajador invocar despido indirecto con derecho a indemnización completa.</p>
                                         </div>
                                         <div className="bg-white/60 rounded-lg p-2.5 border border-red-100">
-                                            <p className="font-bold text-red-700 mb-1">⏰ Sanción Moratoria (Art. 65 CST)</p>
+                                            <p className="font-bold text-red-700 mb-1">Sanción Moratoria (Art. 65 CST)</p>
                                             <p>Si no paga la liquidación al día del egreso: <strong>1 día de salario por cada día de retraso</strong> (primeros 24 meses). Luego intereses moratorios.</p>
                                         </div>
                                     </div>
@@ -1288,7 +1301,7 @@ export default function Branches() {
                             )}
                             {settings.pais !== 'Colombia' && (
                                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 text-sm">
-                                    ⚖️ <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
+                                    <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
                                 </div>
                             )}
 
@@ -1412,14 +1425,22 @@ export default function Branches() {
                                             <td className="px-4 py-3 text-slate-500">{emp.fecha_egreso}</td>
                                             <td className="px-4 py-3 font-mono text-slate-400">{settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || '—') : emp.cuil}</td>
                                             <td className="px-4 py-3 text-right">
-                                                {emp.indemnizacion_json && (
+                                                <div className="flex justify-end gap-2">
+                                                    {emp.indemnizacion_json && (
+                                                        <button
+                                                            onClick={() => { setSelectedEmpleado(emp); setViewingIndemnizacion(JSON.parse(emp.indemnizacion_json!)); }}
+                                                            className="px-3 py-1 bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-600 rounded-lg hover:text-rose-600 hover:border-rose-200 transition-colors"
+                                                        >
+                                                            Ver Detalle
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => { setSelectedEmpleado(emp); setViewingIndemnizacion(JSON.parse(emp.indemnizacion_json!)); }}
-                                                        className="px-3 py-1 bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-600 rounded-lg hover:text-rose-600 hover:border-rose-200 transition-colors"
+                                                        onClick={() => openAdminModal(emp)}
+                                                        className="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-colors"
                                                     >
-                                                        Ver Detalle
+                                                        Ver Recibos
                                                     </button>
-                                                )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

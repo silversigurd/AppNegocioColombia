@@ -10,6 +10,7 @@ import Ticket from '../components/Ticket';
 import PedidoTicket from '../components/PedidoTicket';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 
 // --- COMPONENTES AUXILIARES ---
@@ -160,6 +161,34 @@ export default function Dashboard() {
 
     const displayMovimientos = isExpanded ? filteredMovimientos : filteredMovimientos.slice(0, 5);
 
+    // Chart Data Generation
+    const chartData = React.useMemo(() => {
+        const grouped: Record<string, number> = {};
+        for(let i=6; i>=0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { weekday: 'short', day: 'numeric' });
+            grouped[dateStr] = 0;
+        }
+        movimientos.forEach(m => {
+            if (m.tipo === 'INGRESO') {
+                const dateStr = new Date(m.fecha).toLocaleDateString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { weekday: 'short', day: 'numeric' });
+                if (grouped[dateStr] !== undefined) {
+                    grouped[dateStr] += m.monto;
+                }
+            }
+        });
+        return Object.entries(grouped).map(([name, Ventas]) => ({ name, Ventas }));
+    }, [movimientos, settings.pais]);
+
+    const medioPagoMap: Record<string, string> = {
+        'EFECTIVO': 'Efectivo',
+        'TARJETA_CREDITO': 'Tarjeta de Crédito',
+        'TARJETA_DEBITO': 'Tarjeta de Débito',
+        'TRANSFERENCIA': 'Transferencia',
+        'APPS': 'Billetera Virtual'
+    };
+
     return (
         <div className="flex flex-col gap-6 text-slate-800 pb-10">
             {/* Top Banner */}
@@ -225,8 +254,20 @@ export default function Dashboard() {
                             <option>Semana pasada</option>
                         </select>
                     </div>
-                    <div className="w-full h-64 bg-slate-50/50 rounded-xl border border-slate-100 flex items-center justify-center">
-                        <p className="text-slate-400 text-sm font-medium">Gráfico de barras interactivo aquí</p>
+                    <div className="w-full h-64 bg-slate-50/50 rounded-xl border border-slate-100 flex items-center justify-center p-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${(val/1000)}k`} />
+                                <Tooltip 
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    formatter={(value: any) => [formatCurrency(Number(value) || 0), 'Ventas']}
+                                />
+                                <Bar dataKey="Ventas" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
@@ -276,7 +317,7 @@ export default function Dashboard() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[10px] font-black uppercase text-slate-400">{new Date(mov.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <span className="text-[10px] font-black uppercase text-slate-400">{new Date(mov.fecha).toLocaleTimeString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                                             <span className="text-[10px] text-slate-300">•</span>
                                             <span className={`text-xs font-black ${mov.tipo === 'INGRESO' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                 {mov.tipo === 'INGRESO' ? '+' : '-'}{formatCurrency(mov.monto)}
@@ -356,7 +397,7 @@ export default function Dashboard() {
                                 {selectedTicketData.medio_pago && (
                                     <div className="flex justify-between text-xs font-bold text-slate-500">
                                         <span>Medio de Pago</span>
-                                        <span className="text-primary-700">{selectedTicketData.medio_pago}</span>
+                                        <span className="text-primary-700">{medioPagoMap[selectedTicketData.medio_pago] || selectedTicketData.medio_pago}</span>
                                     </div>
                                 )}
                                 <div className="flex justify-between text-lg font-black text-slate-800 pt-2 border-t border-slate-200">

@@ -586,7 +586,7 @@ export default function Providers() {
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Celular Preventista</label>
                                                     <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
-                                                        value={formData.preventista_telefono} onChange={e => setFormData({ ...formData, preventista_telefono: e.target.value })} />
+                                                        value={formData.preventista_telefono} onChange={e => setFormData({ ...formData, preventista_telefono: e.target.value.replace(/[^\d+]/g, '') })} />
                                                 </div>
                                             </div>
                                             <div className="flex gap-4">
@@ -609,7 +609,7 @@ export default function Providers() {
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Teléfono Principal</label>
                                                     <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
-                                                        value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} />
+                                                        value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value.replace(/[^\d+]/g, '') })} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Código Postal</label>
@@ -621,7 +621,7 @@ export default function Providers() {
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Código CIIU (Actividad)</label>
                                                     <input type="text" placeholder="Ej: 4711" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 text-sm"
-                                                        value={formData.codigo_ciiu} onChange={e => setFormData({ ...formData, codigo_ciiu: e.target.value })} />
+                                                        value={formData.codigo_ciiu} onChange={e => setFormData({ ...formData, codigo_ciiu: e.target.value.replace(/\D/g, '') })} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="block text-xs font-bold text-slate-600 mb-1">Stock: Saldo de Envases</label>

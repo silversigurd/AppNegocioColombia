@@ -430,7 +430,7 @@ export default function Inventory() {
                                         type="text"
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                         value={formData.codigo}
-                                        onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                                        onChange={(e) => setFormData({ ...formData, codigo: e.target.value.replace(/\D/g, '') })}
                                     />
                                 </div>
                                 <div className="col-span-1">

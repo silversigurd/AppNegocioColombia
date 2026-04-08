@@ -41,6 +41,13 @@ export default function POS() {
     const [lastSale, setLastSale] = useState<any>(null);
     const [showPrintOptions, setShowPrintOptions] = useState(false);
 
+    // Toast de aviso inline (no roba el foco como window.alert)
+    const [stockWarning, setStockWarning] = useState<string | null>(null);
+    const showStockWarning = (msg: string) => {
+        setStockWarning(msg);
+        setTimeout(() => setStockWarning(null), 3000);
+    };
+
     useEffect(() => {
         loadProducts();
     }, []);
@@ -63,6 +70,9 @@ export default function POS() {
         let lastKeyTime = Date.now();
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            // No capturar teclas cuando el modal de impresión/venta está activo
+            if (showPrintOptions) return;
+
             const currentTime = Date.now();
 
             // If it's been more than 50ms since last key, it's probably not a scanner
@@ -90,13 +100,22 @@ export default function POS() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [products, cart]); // Re-bind when products change
+    }, [products, cart, showPrintOptions]); // Re-bind when products change or modal opens/closes
 
     const addToCart = (product: Product) => {
         const existing = cart.find(item => item.id === product.id);
         if (existing) {
+            // Verificar que no supere el stock disponible
+            if (existing.quantity >= product.stock) {
+                showStockWarning(`Sin más stock de «${product.nombre}» (disponible: ${product.stock})`);
+                return;
+            }
             setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
         } else {
+            if (product.stock <= 0) {
+                showStockWarning(`«${product.nombre}» está agotado.`);
+                return;
+            }
             setCart([...cart, { ...product, quantity: 1 }]);
         }
     };
@@ -109,6 +128,10 @@ export default function POS() {
         setCart(cart.map(item => {
             if (item.id === id) {
                 const newQ = item.quantity + delta;
+                if (delta > 0 && newQ > item.stock) {
+                    showStockWarning(`Stock máximo alcanzado para «${item.nombre}» (disponible: ${item.stock})`);
+                    return item;
+                }
                 return newQ > 0 ? { ...item, quantity: newQ } : item;
             }
             return item;
@@ -271,10 +294,10 @@ export default function POS() {
                     : (user?.empleado_nombre || user?.username || 'Sistema')
             });
             setShowPrintOptions(true);
+            // La limpieza se posterga y sólo ocurrirá cuando el usuario elija "Nueva Venta"
+            // garantizando absoluta estabilidad en el DOM para la orden de impresión.
 
-            alert('Venta realizada con éxito!');
-            setCart([]);
-            setClienteIden('');
+
             loadProducts(); // Reload stock
         } catch (error) {
             console.error('Error recording sale:', error);
@@ -284,6 +307,13 @@ export default function POS() {
 
     return (
         <>
+            {/* Toast de advertencia de stock */}
+            {stockWarning && (
+                <div className="no-print fixed top-6 left-1/2 -translate-x-1/2 z-[300] bg-amber-500 text-white px-5 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-3 animate-scale-in">
+                    <span className="text-lg">&#9888;</span>
+                    {stockWarning}
+                </div>
+            )}
             <div className="flex gap-6 h-full animate-fade-in text-slate-800">
 
                 {/* Left Column: Product Selection */}
@@ -494,7 +524,7 @@ export default function POS() {
 
             {/* Print Options Backdrop/Overlay */}
             {showPrintOptions && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                <div className="no-print fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
                     <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 p-8 text-center">
                         <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
                             <PaymentsIcon sx={{ fontSize: 32 }} />
@@ -505,42 +535,37 @@ export default function POS() {
                         <div className="flex flex-col gap-3">
                             <button
                                 onClick={() => {
-                                    // Delay the state update so Electron print spooler catches the DOM
-                                    setTimeout(() => {
-                                        window.print();
-                                    }, 100);
-
-                                    // Close modal after giving some time to the print dialog
-                                    setTimeout(() => {
-                                        setShowPrintOptions(false);
-                                    }, 1500);
+                                    window.print();
                                 }}
                                 className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-500/30 transition-all active:scale-95"
                             >
                                 <PrintIcon /> Imprimir Ticket
                             </button>
                             <button
-                                onClick={() => setShowPrintOptions(false)}
-                                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3.5 rounded-2xl font-bold transition-all"
+                                onClick={() => {
+                                    setShowPrintOptions(false);
+                                    setLastSale(null);
+                                    setCart([]);
+                                    setClienteIden('');
+                                }}
+                                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3.5 rounded-2xl font-bold transition-all active:scale-95"
                             >
-                                Continuar sin imprimir
+                                Nueva Venta
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Hidden Ticket for Printing */}
-            {lastSale && (
-                <Ticket
-                    id={lastSale.id}
-                    fecha={lastSale.fecha}
-                    items={lastSale.items}
-                    total={lastSale.total}
-                    subtotal={lastSale.subtotal}
-                    impuestos={lastSale.impuestos}
-                    vendedor={lastSale.vendedor}
-                />
+            {/* Venta Ticket Print Wrapper — usa print-only para que el CSS de impresion lo muestre correctamente */}
+            {showPrintOptions && lastSale && (
+                <div className="print-only">
+                    <Ticket
+                        ventaData={lastSale}
+                        cliente_identificacion={lastSale.cliente_identificacion}
+                        medio_pago={lastSale.medio_pago}
+                    />
+                </div>
             )}
         </>
     );

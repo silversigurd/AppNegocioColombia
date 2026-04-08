@@ -191,8 +191,8 @@ export default function Finance() {
                             ) : filteredMovements.map((mov) => (
                                 <tr
                                     key={mov.id}
-                                    onClick={() => (mov.venta_id || mov.pedido_id) && handleViewDetails(mov)}
-                                    className={`transition-colors border-b border-slate-50 ${(mov.venta_id || mov.pedido_id) ? 'cursor-pointer hover:bg-slate-50 group' : ''}`}
+                                    onClick={() => (mov.venta_id || mov.pedido_id) ? handleViewDetails(mov) : window.alert('Este es un abono de caja manual sin detalle de artículos.')}
+                                    className={`transition-colors border-b border-slate-50 cursor-pointer hover:bg-slate-50 group`}
                                 >
                                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(mov.fecha).toLocaleString()}</td>
                                     <td className="px-6 py-4 font-medium text-slate-700">

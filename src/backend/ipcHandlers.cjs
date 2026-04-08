@@ -278,7 +278,9 @@ async function setupIpcHandlers() {
             nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
             responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
             condicion_iva, condicion_iibb, direccion, email_compras,
-            email_pagos, plazo_pago, cbu, rubro, saldo_actual
+            email_pagos, plazo_pago, cbu, rubro, saldo_actual,
+            preventista_nombre, preventista_telefono, dia_visita, dia_entrega, limite_credito, minimo_compra,
+            moneda_compra, retencion_ganancias, retencion_iibb, vencimiento_certificado_exencion, saldo_envases
         } = pro;
 
         return new Promise((resolve, reject) => {
@@ -287,14 +289,18 @@ async function setupIpcHandlers() {
                     nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
                     responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
                     condicion_iva, condicion_iibb, direccion, email_compras, 
-                    email_pagos, plazo_pago, cbu, rubro, saldo_actual
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    email_pagos, plazo_pago, cbu, rubro, saldo_actual,
+                    preventista_nombre, preventista_telefono, dia_visita, dia_entrega, limite_credito, minimo_compra,
+                    moneda_compra, retencion_ganancias, retencion_iibb, vencimiento_certificado_exencion, saldo_envases
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             db.run(query, [
-                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
+                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva ? 1 : 0,
                 responsabilidad_tributaria || 'R-99-PN', codigo_postal || null, email_facturacion || null, codigo_ciiu || null,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
-                email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0
+                email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0,
+                preventista_nombre || null, preventista_telefono || null, dia_visita || null, dia_entrega || null, limite_credito || 0, minimo_compra || 0,
+                moneda_compra || 'COP', retencion_ganancias || 0, retencion_iibb || 0, vencimiento_certificado_exencion || null, saldo_envases || 0
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true, id: this.lastID });
@@ -307,7 +313,9 @@ async function setupIpcHandlers() {
             id, nombre, contacto, telefono, nombre_fantasia, cuit, nit, responsable_iva,
             responsabilidad_tributaria, codigo_postal, email_facturacion, codigo_ciiu,
             condicion_iva, condicion_iibb, direccion, email_compras,
-            email_pagos, plazo_pago, cbu, rubro, saldo_actual
+            email_pagos, plazo_pago, cbu, rubro, saldo_actual,
+            preventista_nombre, preventista_telefono, dia_visita, dia_entrega, limite_credito, minimo_compra,
+            moneda_compra, retencion_ganancias, retencion_iibb, vencimiento_certificado_exencion, saldo_envases
         } = pro;
 
         return new Promise((resolve, reject) => {
@@ -316,14 +324,18 @@ async function setupIpcHandlers() {
                     nombre = ?, contacto = ?, telefono = ?, nombre_fantasia = ?, cuit = ?, nit = ?, responsable_iva = ?,
                     responsabilidad_tributaria = ?, codigo_postal = ?, email_facturacion = ?, codigo_ciiu = ?,
                     condicion_iva = ?, condicion_iibb = ?, direccion = ?, email_compras = ?, 
-                    email_pagos = ?, plazo_pago = ?, cbu = ?, rubro = ?, saldo_actual = ?
+                    email_pagos = ?, plazo_pago = ?, cbu = ?, rubro = ?, saldo_actual = ?,
+                    preventista_nombre = ?, preventista_telefono = ?, dia_visita = ?, dia_entrega = ?, limite_credito = ?, minimo_compra = ?,
+                    moneda_compra = ?, retencion_ganancias = ?, retencion_iibb = ?, vencimiento_certificado_exencion = ?, saldo_envases = ?
                 WHERE id = ?
             `;
             db.run(query, [
-                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva || 0,
+                nombre, contacto || null, telefono || null, nombre_fantasia || null, cuit || null, nit || null, responsable_iva ? 1 : 0,
                 responsabilidad_tributaria || 'R-99-PN', codigo_postal || null, email_facturacion || null, codigo_ciiu || null,
                 condicion_iva || null, condicion_iibb || null, direccion || null, email_compras || null,
-                email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0, id
+                email_pagos || null, plazo_pago || 0, cbu || null, rubro || null, saldo_actual || 0,
+                preventista_nombre || null, preventista_telefono || null, dia_visita || null, dia_entrega || null, limite_credito || 0, 
+                minimo_compra || 0, moneda_compra || 'COP', retencion_ganancias || 0, retencion_iibb || 0, vencimiento_certificado_exencion || null, saldo_envases || 0, id
             ], function (err) {
                 if (err) reject(err);
                 else resolve({ success: true });
