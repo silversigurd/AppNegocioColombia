@@ -289,7 +289,7 @@ export default function POS() {
                 iva_5,
                 ipoc: ipoc_8,
                 imp_saludable,
-                vendedor: user?.username === 'Principal' 
+                vendedor: user?.rol === 'Admin' 
                     ? (user?.nombre_propietario || user?.username || 'Sistema')
                     : (user?.empleado_nombre || user?.username || 'Sistema')
             });

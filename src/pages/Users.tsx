@@ -6,8 +6,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import { useAuth } from '../context/AuthContext';
 
 export default function Users() {
+    const { user, login } = useAuth();
     const [users, setUsers] = useState<{ id: number; username: string; rol: string; empleado_id: number | null; empleado_nombre: string | null; fecha_creacion: string }[]>([]);
     const [empleados, setEmpleados] = useState<{ id: number; nombre: string }[]>([]);
     const [loading, setLoading] = useState(true);
@@ -88,6 +90,17 @@ export default function Users() {
             if (editingUser) {
                 const res = await ipc.invoke('update-usuario', { id: editingUser, ...formData });
                 if (!res.success) throw new Error(res.error);
+
+                // Si el usuario editado es el actual, refrescar la sesión inmediatamente
+                if (user && user.id === editingUser) {
+                    login({
+                        ...user,
+                        username: formData.username,
+                        rol: formData.rol,
+                        empleado_id: formData.empleado_id === '' ? null : formData.empleado_id,
+                        nombre_propietario: formData.nombre_propietario
+                    });
+                }
             } else {
                 const res = await ipc.invoke('save-usuario', formData);
                 if (!res.success) {
