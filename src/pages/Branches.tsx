@@ -1057,13 +1057,41 @@ export default function Branches() {
                                 <div className="hidden sm:flex w-12 h-12 rounded-full bg-primary-100 text-primary-600 items-center justify-center"><PersonIcon /></div>
                                 <div>
                                     <h2 className="text-xl font-bold">{selectedEmpleado.nombre}</h2>
-                                    <p className="text-sm font-medium text-slate-500">Legajo y Liquidaciones | CUIL: {selectedEmpleado.cuil}</p>
+                                    <p className="text-sm font-medium text-slate-500">Legajo y Liquidaciones | {settings.pais === 'Colombia' ? 'CC/NIT' : 'CUIL'}: {settings.pais === 'Colombia' ? (selectedEmpleado.cedula_ciudadania || selectedEmpleado.rut || '') : selectedEmpleado.cuil}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsAdminOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500"><CloseIcon /></button>
+                            <div className="flex items-center gap-3">
+                                {selectedEmpleado.fecha_egreso && (
+                                    <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Dado de Baja</span>
+                                )}
+                                <button onClick={() => setIsAdminOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500"><CloseIcon /></button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/30">
+
+                            {/* Basic Info Section (Read-Only) */}
+                            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                                <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase">Información de Contacto</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">Teléfono</p>
+                                        <p className="font-medium text-slate-700">{selectedEmpleado.telefono || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">Dirección</p>
+                                        <p className="font-medium text-slate-700">{selectedEmpleado.direccion || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">Localidad</p>
+                                        <p className="font-medium text-slate-700">{selectedEmpleado.localidad || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">{settings.pais === 'Colombia' ? 'EPS' : 'Obra Social'}</p>
+                                        <p className="font-medium text-slate-700">{settings.pais === 'Colombia' ? selectedEmpleado.eps : selectedEmpleado.obra_social || '—'}</p>
+                                    </div>
+                                </div>
+                            </div>
 
                             {selectedEmpleado.modalidad_contratacion === 'Informal' ? (
                                 <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center">
@@ -1100,15 +1128,19 @@ export default function Branches() {
                                     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex-1 flex flex-col">
                                         <div className="flex justify-between items-center mb-6">
                                             <h4 className="font-bold text-lg flex items-center gap-2"><ReceiptIcon className="text-emerald-500" /> Liquidaciones de Sueldo</h4>
-                                            <button onClick={handleGenerarRecibo} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
-                                                <AddIcon fontSize="small" /> Liquidar Periodo
-                                            </button>
-                                            <button onClick={() => { setVacationData({ dias: 0, periodo: new Date().getFullYear().toString(), total_restantes: 0 }); setIsVacationModalOpen(true); }} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">
-                                                <ReceiptIcon fontSize="small" /> Compensación Económica
-                                            </button>
+                                            {!selectedEmpleado.fecha_egreso && (
+                                                <div className="flex gap-2">
+                                                    <button onClick={handleGenerarRecibo} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
+                                                        <AddIcon fontSize="small" /> Liquidar Periodo
+                                                    </button>
+                                                    <button onClick={() => { setVacationData({ dias: 0, periodo: new Date().getFullYear().toString(), total_restantes: 0 }); setIsVacationModalOpen(true); }} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">
+                                                        <ReceiptIcon fontSize="small" /> Compensación Económica
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {settings.pais === 'Colombia' && (
+                                        {!selectedEmpleado.fecha_egreso && settings.pais === 'Colombia' && (
                                             <div className="mb-6 p-5 bg-emerald-50 border border-emerald-100 rounded-3xl shadow-inner-sm">
                                                 <p className="text-[11px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2">
                                                     <CheckCircleIcon sx={{ fontSize: 16 }} /> Novedades del Mes (Horas Extra y Recargos CST 2026)

@@ -284,7 +284,7 @@ export default function POS() {
                 cliente_identificacion: clienteIden,
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 medio_pago: medioPago,
-                cude_local: settings.dianCompliance2026 ? 'preview_only' : null,
+                cude_local: result.cude_local,
                 iva_19,
                 iva_5,
                 ipoc: ipoc_8,

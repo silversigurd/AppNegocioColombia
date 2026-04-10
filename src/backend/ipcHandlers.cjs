@@ -89,7 +89,7 @@ async function setupIpcHandlers() {
 
                     db.run('COMMIT', (err) => {
                         if (err) reject(err);
-                        else resolve({ success: true, ventaId });
+                        else resolve({ success: true, ventaId, cude_local });
                     });
                 });
             });
