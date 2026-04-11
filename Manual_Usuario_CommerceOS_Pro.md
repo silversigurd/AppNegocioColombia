@@ -1,101 +1,123 @@
-# Manual de Usuario: CommerceOS Pro (2026)
-## Sistema Integral de Gestión Comercial y Recursos Humanos
+# Manual de Usuario Integral: CommerceOS Pro (Edición Colombia 2026)
+
+Bienvenido a **CommerceOS Pro**, su ecosistema completo para la gestión comercial, logística y de capital humano, estrictamente ajustado a los lineamientos legales, tributarios y laborales de la **República de Colombia (CST y Ley 2466 de 2025)**. 
+
+Este manual ha sido redactado para acompañarlo paso a paso, asegurando que domine cada rincón del sistema sin que quede ninguna duda.
+
+> [!IMPORTANT]
+> **Credenciales de Acceso por Defecto**
+> La primera vez que inicie el programa, se le solicitará iniciar sesión. Introduzca los siguientes datos:
+> - **Usuario:** Principal
+> - **Contraseña:** admin
+>
+> *(Nota: Le recomendamos encarecidamente cambiar la contraseña en la sección Usuarios una vez haya ingresado por primera vez).*
 
 ---
 
-### 1. Introducción al Sistema
-**CommerceOS Pro** es una plataforma de software de escritorio diseñada para optimizar la gestión integral de operaciones comerciales, incluyendo control de inventario, procesos de venta y administración de recursos humanos. Este sistema garantiza el estricto cumplimiento de la normativa laboral argentina vigente, en particular la **Ley Bases 2024** y la **nueva reforma laboral**.
+## 1. Activación e Instalación Inicial
+
+1. **Instalación:** Ejecute el instalador `.exe` provisto. Lea detenidamente y acepte marcando la casilla de los **Términos y Condiciones (EULA Colombia 2026)**.
+2. **Activación Segura:** Al iniciar la aplicación, si es su primera vez, el sistema bloqueará las funciones mostrando una ventana de activación.
+3. En pantalla verá un código único llamado **ID de Hardware (Hardware ID)**. 
+4. Copie este ID y envíelo a su administrador o proveedor (vía email/WhatsApp). 
+5. Este le devolverá su **Clave de Activación** (Licencia comercial). Introdúzcala en la casilla y presione "Activar". Las pantallas bloqueadas se habilitarán de manera vitalicia en su equipo.
 
 ---
 
-### 2. Implementación, Activación y Proceso de Instalación
-#### Instalación
-1. Ejecute el archivo instalador con el nombre `CommerceOS Pro Setup.exe`.
-2. Revise y acepte los **Términos y Condiciones (EULA)** de uso.
-3. El sistema completará la instalación y generará un acceso directo en el escritorio del equipo.
+## 2. Panel Principal (Dashboard)
 
-#### Activación mediante Hardware ID
-Al iniciar la aplicación por primera vez, el sistema presentará un código de identificación único denominado **Hardware ID**.
-1. Copie este código y remítalo a su proveedor de software.
-2. Recibirá una **Clave de Activación** (Ej: `ABCD-1234-EFGH-5678`).
-3. Introduzca la clave en el campo correspondiente para desbloquear la licencia de forma permanente.
+El corazón de su negocio está aquí. Es la primera pantalla que verá al iniciar sesión. Le mostrará un resumen en vivo de toda la actividad:
+- **Tarjetas de Rendimiento (KPIs):** Visualice las "Ventas del Día", "Tickets Emitidos" y "Alertas de Stock" de forma inmediata y en formato Moneda Colombiana (COP).
+- **Gráficos de Tendencias:** Analice gráficamente cómo se han comportado sus ventas en los últimos 7 días.
+- **Actividad Reciente:** Un historial en tiempo real (cronológico) donde podrá ver cada ingreso (ventas) y cada egreso (pagos a proveedores). Puede hacer clic sobre cualquiera de estos movimientos para ver el comprobante/ticket asociado.
 
 ---
 
-### 3. Panel de Control (Dashboard)
-Al acceder al sistema, el usuario visualizará un resumen ejecutivo en tiempo real de la actividad del negocio, que incluye:
-- **Ventas del día**: Indicador del total de ingresos generados durante la jornada actual.
-- **Stock Crítico**: Alerta sobre los productos cuyas existencias requieren reposición inmediata.
+## 3. Módulo Punto de Venta (POS)
+
+Pensado para la dinámica de atención al público. Rápido y sin errores.
+1. **Buscar y Agregar:** Utilice el buscador superior para digitar el nombre del producto, código interno o utilizar un lector de código de barras. 
+2. **Gestión del Carrito:** Los productos irán sumándose a la pantalla derecha. Puede cambiar la cantidad haciendo clic en el número, o eliminar un producto presionando el ícono de la papelera roia (🗑️).
+3. **Pagar:** Al procesar el pago, el sistema le preguntará el **Medio de Pago** (Efectivo, Tarjeta, Transferencia, Billetera Virtual).
+4. **Comprobante:** Automáticamente se generará un Ticket POS en pantalla listo para imprimir (con resolución de 80mm para impresoras térmicas), ajustado a tributación local.
 
 ---
 
-### 4. Módulo de Punto de Venta (POS)
-El módulo de Ventas está diseñado para procesar transacciones de manera eficiente y ágil.
-1. **Búsqueda de Productos**: Localice artículos por denominación o mediante la lectura de códigos de barras.
-2. **Gestión del Carrito**: Permite ajustar cantidades o eliminar productos de la transacción con facilidad.
-3. **Emisión de Comprobante**: Al finalizar la venta, se genera un ticket de comprobante (conforme a la normativa 2026) apto para impresión directa.
+## 4. Módulo de Inventario
+
+Aquí controlará toda la mercadería de su comercio físico.
+1. **Alta de Productos:** Haga clic en "Nuevo Producto". Introduzca Nombre, Categoría, Costo, y Precio de Venta.
+2. **Alertas Automáticas:** Defina el "Stock Mínimo". Si la cantidad cae por debajo de este número, el Dashboard se lo advertirá poniéndolo en la sección "Alertas de Stock".
+3. **Edición y Ajustes Manuales:** Utilice el botón de Editar (✏️) para actualizar precios de compra si hay inflación, o cambiar cantidades puntuales de bodega si hay piezas rotas, pérdidas o ajustes.
 
 ---
 
-### 5. Gestión de Inventario
-Este módulo asegura un control exhaustivo sobre las existencias de productos.
-- **Registro de Productos**: Permite definir la denominación, categoría, precio de costo, precio de venta y stock inicial de cada artículo.
-- **Ajustes de Stock**: Herramienta para la modificación manual de existencias debido a mermas, roturas o ingresos de nueva mercadería.
-- **Filtros de Búsqueda**: Facilita la localización de productos por categoría o nivel de stock bajo.
+## 5. Módulo de Clientes
+
+Lleve una agenda organizada de sus compradores:
+- Podrá registrar *Nombre, Razón Social, NIT/Cédula, Correo Electrónico y Teléfonos*.
+- Conocer la base de clientes permite en un futuro enviar promociones, llevar un recuento de quién compra más y facturarle directamente a una razón social específica.
 
 ---
 
-### 6. Módulo de Proveedores
-Gestione la cadena de suministro y mantenga un registro centralizado de sus contactos comerciales.
-- **Registro de Proveedores**: Almacene nombres, CUIT/CUIL, teléfonos, correos electrónicos y direcciones.
-- **Vinculación**: Facilita la identificación de qué proveedor suministra cada artículo del inventario.
-- **Búsqueda Rápida**: Localice contactos por nombre o rubro comercial para agilizar pedidos.
+## 6. Módulo de Proveedores y Compras
+
+Una sección revolucionaria para controlar su abastecimiento, deudas corrientes y logística de camiones.
+1. **Directorio:** Cree la ficha de su distribuidor (Razón Social, NIT, Teléfono, Día de Visita).
+2. **Pedidos y Recepción:** 
+   - A través del ícono del recibo en un Proveedor, ingrese al menú de "Pedidos / Compras" de ese proveedor.
+   - Presione **Generar Orden de Compra**.
+   - Arme su "listita" agregando los productos que le solicitó al preventista y presione Guardar.
+   - Cuando el camión descargue la mercadería en la puerta de su local, vuelva a esa orden y haga clic en **Sí, confirmar recepción**. El sistema automáticamente sumará las cantidades exactas que acaba de comprar a su *Stock de Inventario*.
+3. **Pagos y Deudas (Fiado):**
+   - Una vez recepcionada la orden, debe asentarla económicamente presionando el botón **Registrar Pago**.
+   - El sistema le desplegará nuestro nuevo *Modal de Pagos* donde podrá elegir la realidad de su bolsillo:
+      - **"Pagué en el momento"**: Esto significa que saca el dinero de su caja principal al instante (impacta como Egreso en Finanzas).
+      - **"Dejar a Fiado"**: Asume que no le entregó efectivo al camionero, y suma ese valor total a la Deuda Actual (Cuenta Corriente) que mantiene con el Proveedor.
 
 ---
 
-### 7. Recursos Humanos (RRHH) – Marco Legal 2024
-Este módulo ha sido completamente actualizado para garantizar la observancia de la Ley Bases 2024.
+## 7. Módulo de Finanzas
 
-#### Configuración del Perfil de Empresa
-En la sección **Ajustes > RRHH**, se debe definir el tamaño de la empresa para aplicar el marco legal correspondiente:
-- **PyME 1**: Periodo de prueba establecido en 6 meses.
-- **PyME 2**: Periodo de prueba establecido en 8 meses.
-- **Gran Empresa**: Periodo de prueba establecido en 12 meses.
+Visualice en detalle hacia dónde fluye el dinero de su emprendimiento:
+1. **Caja Diaria / Arqueo:** Vea los "Haberes" (Ingresos por Ventas) en verde y los "Descuentos/Gastos" (Pagos a proveedores) en rojo.
+2. Conozca su Liquidez real en Caja/Banco filtrando por días, semanas o meses precisos.
+3. El Balance Neto debajo le dirá si está rindiendo cuentas en positivo o en negativo esa semana.
 
 ---
 
-### 8. Administración de Empleados
-- **Alta de Empleados**: Registre datos personales, CUIT/CUIL, información de contacto y fecha de ingreso.
-- **Cese Laboral**: Al procesar la baja de un empleado, el sistema calcula automáticamente la liquidación final y la indemnización, considerando:
-    - El periodo de prueba vigente (según la clasificación de la empresa).
-    - La activación del **Fondo de Cese** (si corresponde).
-    - El **Tope de CCT** (según el Fallo Vizzoti).
-- **Compensación Económica**: Función para generar formalmente notas de liquidación final y documentar acuerdos voluntarios de pago.
+## 8. Módulo de Recursos Humanos (Colombia 2026)
+
+Cero dolores de cabeza legales. Completamente adaptado a la **Ley 2466 de 2025** y al **CST Colombiano**.
+1. **Alta de Empleados:** Ingrese a la ventana de Nuevo Empleado. Complete sus datos personales e indique qué **Modalidad de Contrato** posee (Indefinido, Término Fijo, Obra/Labor o Informal).
+2. **Nómina y Recibos:** El sistema calcula los salarios con base en la reducción de jornada a **42 horas semanales** estipuladas por Colombia y le permite generar recibos de liquidación en PDF.
+3. **Proceso de Desvinculación y Despidos:**
+   - Seleccione a un empleado activo y presione el botón de la puerta roja para proceder a Desvincularlo.
+   - En pantalla aparecerá un **Panel Preventivo Jurídico** advirtiéndole del debido proceso disciplinario (5 días hábiles de defensa), Leyes de Acoso Laboral, Fueros Especiales (Maternidad, Prepensionados) y la Sanción Moratoria aplicable para evitar embargos.
+   - Elija la Causal real de egreso basada en el CST (Ej: Art. 61, 62 o Despido Injusto).
+   - **Indemnización Automatizada:** Si selecciona Despido Injusto, el sistema **calculará solito** cuándo corresponde indemnizar considerando el tipo de contrato y la nueva tabla tributaria que exige pagar el primer año 35 días de salario, y luego escalar a 15, 30 o 60 días dependiendo del tiempo permanecido, con base en Ley 2466.
 
 ---
 
-### 9. Módulo de Caja y Finanzas
-- **Historial de Ventas**: Acceso detallado a todas las transacciones pasadas, incluyendo desglose de productos e impuestos aplicados.
-- **Arqueo de Caja**: Resumen de los ingresos totales clasificados por cada medio de pago.
-- **Liquidaciones**: Registro histórico de todos los ceses laborales y los pagos finales realizados a empleados.
+## 9. Módulo de Usuarios
+
+Solo los usuarios con rol *Administrador* pueden ingresar aquí. 
+- Podrá ver la lista de todos los usuarios, comenzando por su usuario predeterminado de instalación `"Principal"`.
+- Cree cuentas nuevas para sus cajeros con el rol *Empleado*.
+- **Seguridad:** Un usuario *Empleado* tiene su panel profundamente restringido; solo puede cobrar pero no puede acceder a las métricas del negocio del Dashboard, no puede asentar liquidaciones masivas de sueldo, y no puede eliminar facturas del historial, asegurando su dinero y mercancía contra fraudes.
 
 ---
 
-### 10. Configuración General del Sistema
-El panel de ajustes (ícono de engranaje) permite la personalización de los siguientes parámetros:
-- **Datos del Comercio**: Edición de la razón social, CUIT, dirección y carga del logotipo para su inclusión en los tickets.
-- **ARCA 2026**: Activación o desactivación del modo de cumplimiento con las directrices de transparencia fiscal.
-- **Módulo Usuarios**: Herramienta para la administración de accesos al sistema y la modificación de contraseñas de usuario.
+## 10. Ajustes del Sistema y Seguridad
 
----
+Ingrese haciendo clic en la "Rueda Dentada" del menú inferior izquierdo.
+- **Datos de Empresa:** Ponga el nombre comercial de su negocio y su Cédula/NIT para que aparezcan bien bonitos impresos en el encabezado de todos sus comprobantes P.O.S y planillas PDF.
+- **Base de Datos 100% Privada:** CommerceOS funciona en modo local. Nadie externo (ni nosotros ni la DIAN) tiene visibilidad de sus números ni base de datos, garantizando cumplimiento impecable de Habeas Data. ¡Pura Privacidad!
 
-### 11. Mantenimiento y Seguridad de la Información
-- **Base de Datos**: La información se almacena de forma local en el equipo del usuario para garantizar la máxima privacidad.
-- **Copias de Seguridad (Backups)**: Se recomienda encarecidamente la realización de copias periódicas de la base de datos para prevenir la pérdida de datos. Para acceder al archivo de base de datos:
-  1. Presione simultáneamente las teclas **Windows + R** en el teclado.
-  2. En la ventana de ejecución, introduzca el siguiente comando: `%APPDATA%\CommerceOS Pro` y luego presione **Aceptar**.
-  3. Se abrirá la carpeta de datos, donde se encuentra el archivo `commerce_data.sqlite`. Copie este archivo en una ubicación segura (como una unidad USB o un servicio de almacenamiento en la nube).
-- **Soporte Técnico**: En caso de incidencias o errores, consulte el registro de actividad o contacte con el desarrollador, teniendo su Hardware ID a disposición.
-
----
-*Manual generado automáticamente para la versión 1.0.1 de CommerceOS Pro.*
+> [!TIP]
+> **Respaldo de la Información (Básico y Vital):**
+> Le sugerimos guardar sus datos de negocio cada semana para evitar tragedias por cortes de luz, discos dañados o robo de la Computadora:
+> 1. Presione las teclas `Windows + R` en el teclado de su computadora.
+> 2. Escriba exactamente `%APPDATA%\CommerceOS Pro` y presione Enter (Aceptar).
+> 3. En la ventana de archivos que se abrirá, tome el archivo llamado `commerce_data.sqlite`, cópielo y guárdelo en Google Drive, o páselo a un Pendrive. 
+> 4. Si cambia de computadora el año que viene, solo debe pegar este archivo en la misma ruta de la PC nueva y tendrá todos sus datos intactos de nuevo.
