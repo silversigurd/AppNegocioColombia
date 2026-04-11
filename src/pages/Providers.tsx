@@ -145,6 +145,7 @@ export default function Providers() {
     
     // Payment Modal State to avoid window.confirm focus lock bugs
     const [paymentPrompt, setPaymentPrompt] = useState<{ pedidoId: number, total: number } | null>(null);
+    const [recepcionPrompt, setRecepcionPrompt] = useState<{ pedidoId: number } | null>(null);
 
     const [formData, setFormData] = useState<Proveedor>(emptyFormData);
 
@@ -259,15 +260,20 @@ export default function Providers() {
         }
     };
 
-    const handleConfirmarRecepcion = async (pedidoId: number) => {
-        const confirmRec = window.confirm('¿Confirmas la recepción física de estos productos? Esto incrementará tu stock.');
-        setTimeout(() => window.focus(), 0);
-        if (!confirmRec) return;
+    const handleConfirmarRecepcion = (pedidoId: number) => {
+        setRecepcionPrompt({ pedidoId });
+    };
+
+    const confirmConfirmarRecepcion = async () => {
+        if (!recepcionPrompt) return;
+        const { pedidoId } = recepcionPrompt;
+        setRecepcionPrompt(null);
         try {
             await ipc.invoke('confirmar-recepcion-pedido', pedidoId, 1);
             // Reload list
             const pedidos = await ipc.invoke('get-pedidos-por-proveedor', activeProveedorId, 1);
             setProveedorPedidos(pedidos);
+            setTimeout(() => window.focus(), 0);
         } catch (err) {
             console.error(err);
             alert('Error confirmando recepción');
@@ -1014,6 +1020,38 @@ export default function Providers() {
                                     className="w-full py-3 mt-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all"
                                 >
                                     Cancelar Operación
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Custom Recepcion Modal */}
+            {recepcionPrompt && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
+                        <div className="p-6 border-b border-sky-100 bg-sky-50 flex items-center gap-3">
+                            <InventoryIcon className="text-sky-600" />
+                            <h2 className="text-lg font-bold text-sky-900">Confirmar Recepción</h2>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-slate-600 mb-6 font-medium text-sm">
+                                ¿Confirmas la recepción física de estos productos?
+                                <br/><br/>
+                                <span className="font-bold text-sky-700">Esto incrementará tu stock automáticamente.</span>
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <button 
+                                    onClick={() => confirmConfirmarRecepcion()}
+                                    className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold transition-all shadow-md shadow-sky-500/20"
+                                >
+                                    Sí, confirmar recepción
+                                </button>
+                                <button 
+                                    onClick={() => setRecepcionPrompt(null)}
+                                    className="w-full py-3 mt-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all"
+                                >
+                                    Cancelar
                                 </button>
                             </div>
                         </div>
