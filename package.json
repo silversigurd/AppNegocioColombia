@@ -31,6 +31,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "include": "installer.nsh",
       "perMachine": true,
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
