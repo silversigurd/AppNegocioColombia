@@ -142,6 +142,9 @@ export default function Providers() {
     const [nuevoPedidoItems, setNuevoPedidoItems] = useState<DetallePedido[]>([]);
     const [percepcionesRec, setPercepcionesRec] = useState(0);
     const [retencionesApl, setRetencionesApl] = useState(0);
+    
+    // Payment Modal State to avoid window.confirm focus lock bugs
+    const [paymentPrompt, setPaymentPrompt] = useState<{ pedidoId: number, total: number } | null>(null);
 
     const [formData, setFormData] = useState<Proveedor>(emptyFormData);
 
@@ -231,7 +234,9 @@ export default function Providers() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!window.confirm('¿Seguro que deseas eliminar este proveedor?')) return;
+        const confirmDelete = window.confirm('¿Seguro que deseas eliminar este proveedor?');
+        setTimeout(() => window.focus(), 0);
+        if (!confirmDelete) return;
         try {
             await ipc.invoke('delete-proveedor', id);
             loadProveedores();
@@ -255,7 +260,9 @@ export default function Providers() {
     };
 
     const handleConfirmarRecepcion = async (pedidoId: number) => {
-        if (!window.confirm('¿Confirmas la recepción física de estos productos? Esto incrementará tu stock.')) return;
+        const confirmRec = window.confirm('¿Confirmas la recepción física de estos productos? Esto incrementará tu stock.');
+        setTimeout(() => window.focus(), 0);
+        if (!confirmRec) return;
         try {
             await ipc.invoke('confirmar-recepcion-pedido', pedidoId, 1);
             // Reload list
@@ -267,12 +274,16 @@ export default function Providers() {
         }
     };
 
-    const handleRegistrarPago = async (pedidoId: number, total: number) => {
-        const confirmarIntencion = window.confirm(`Estás por asentar el pago/gasto de esta orden por $${total.toFixed(2)}.\n\n¿Deseas continuar?`);
-        if (!confirmarIntencion) return;
+    const handleRegistrarPago = (pedidoId: number, total: number) => {
+        // En vez de window.confirm() que bloquea el foco, abrimos un modal
+        setPaymentPrompt({ pedidoId, total });
+    };
 
-        const isCaja = window.confirm("¿De dónde salió el dinero para pagar esto?\n\n• Presiona [ACEPTAR] si pagaste en el momento (Saca dinero de la Caja / Cuenta Bancaria actual).\n\n• Presiona [CANCELAR] si lo dejaron fiado (El total se sumará automáticamente a la deuda de la Cuenta Corriente del Proveedor).");
-
+    const confirmRegistrarPago = async (isCaja: boolean) => {
+        if (!paymentPrompt) return;
+        const { pedidoId, total } = paymentPrompt;
+        setPaymentPrompt(null);
+        
         try {
             await ipc.invoke('registrar-pago-pedido', pedidoId, 1, activeProveedorId, total, isCaja);
             // Reload list
@@ -280,6 +291,7 @@ export default function Providers() {
             setProveedorPedidos(pedidos);
             // Refresh proveedores to reflect any Cuenta Corriente balance updates
             loadProveedores();
+            setTimeout(() => window.focus(), 0);
         } catch (err) {
             console.error(err);
             alert('Error registrando el pago');
@@ -970,6 +982,44 @@ export default function Providers() {
                 </div>
             )}
 
+            {/* Custom Payment Modal to fix window.confirm focus lock issue */}
+            {paymentPrompt && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in text-slate-800">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
+                        <div className="p-6 border-b border-indigo-100 bg-indigo-50 flex items-center gap-3">
+                            <AccountBalanceWalletIcon className="text-indigo-600" />
+                            <h2 className="text-xl font-bold text-indigo-900">Registrar Pago de Orden</h2>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-slate-600 mb-6 font-medium">
+                                Vas a asentar el pago por un total de <span className="font-bold text-indigo-600">${paymentPrompt.total.toFixed(2)}</span>.
+                                <br/><br/>
+                                ¿De dónde salió el dinero para pagar esto?
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <button 
+                                    onClick={() => confirmRegistrarPago(true)}
+                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-md shadow-emerald-500/20"
+                                >
+                                    Pagué en el momento (Sale de Caja)
+                                </button>
+                                <button 
+                                    onClick={() => confirmRegistrarPago(false)}
+                                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-md shadow-amber-500/20"
+                                >
+                                    Dejar a "Fiado" (Sumar a Deuda / Cta. Cte.)
+                                </button>
+                                <button 
+                                    onClick={() => setPaymentPrompt(null)}
+                                    className="w-full py-3 mt-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all"
+                                >
+                                    Cancelar Operación
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
