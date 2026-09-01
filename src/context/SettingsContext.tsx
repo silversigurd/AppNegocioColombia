@@ -16,13 +16,19 @@ interface BusinessSettings {
     hrAplicaFondoCese: boolean; // Argentina
     hrCctTope: number; // Argentina
     arcaCompliance2026: boolean; // Argentina
-    dianCompliance2026: boolean; // Colombia — DIAN POS interno (local)
-    // Colombia 2026 - Nuevos campos
+    dianCompliance2026: boolean; // Colombia — habilita emisión via MATIAS API
+    // Colombia 2026 - Parámetros fiscales
     tieneCafeteria: boolean;       // Activa soporte IPOC 8% para sección de comidas
     esResponsableIVA: boolean;     // false = No Responsable de IVA (< 3.500 UVT ingresos)
     municipio: string;             // Municipio para cálculo de ICA
     tasaICA: number;               // Tasa ICA del municipio (ej: 11.04 = 11.04/1000)
-    resolucionDIAN: string;        // Número de resolución habilitación POS (referencia interna)
+    resolucionDIAN: string;        // Referencia interna (legacy)
+    // MATIAS API — Facturación Electrónica DIAN
+    dian_resolucion: string;       // Número de resolución DIAN (ej: 18764074347312)
+    dian_prefijo: string;          // Prefijo de la factura (ej: SETP)
+    dian_numero_actual: string;    // Número secuencial actual (ej: 1)
+    dian_ciudad_id: string;        // ID de ciudad MATIAS (Bogotá = 836)
+    dian_email_consumidor: string; // Email para compradores anónimos
 }
 
 const defaultSettings: BusinessSettings = {
@@ -39,13 +45,19 @@ const defaultSettings: BusinessSettings = {
     hrAplicaFondoCese: false,
     hrCctTope: 0,
     arcaCompliance2026: false,
-    dianCompliance2026: true, // Activo por defecto en Colombia
+    dianCompliance2026: true,
     // Colombia 2026 defaults
     tieneCafeteria: false,
     esResponsableIVA: true,
     municipio: 'Bogotá D.C.',
     tasaICA: 11.04,
     resolucionDIAN: '',
+    // MATIAS API defaults
+    dian_resolucion: '',
+    dian_prefijo: '',
+    dian_numero_actual: '1',
+    dian_ciudad_id: '836',
+    dian_email_consumidor: '',
 };
 
 interface SettingsContextType {
@@ -92,6 +104,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 municipio: dbSettings.municipio || defaultSettings.municipio,
                 tasaICA: Number(dbSettings.tasaICA) || defaultSettings.tasaICA,
                 resolucionDIAN: dbSettings.resolucionDIAN || '',
+                // MATIAS API
+                dian_resolucion: dbSettings.dian_resolucion || '',
+                dian_prefijo: dbSettings.dian_prefijo || '',
+                dian_numero_actual: dbSettings.dian_numero_actual || '1',
+                dian_ciudad_id: dbSettings.dian_ciudad_id || '836',
+                dian_email_consumidor: dbSettings.dian_email_consumidor || '',
             });
         } catch (e) {
             console.error('Failed to load settings from DB', e);

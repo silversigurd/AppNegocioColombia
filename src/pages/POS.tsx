@@ -40,6 +40,7 @@ export default function POS() {
     // Last Sale Info for Printing
     const [lastSale, setLastSale] = useState<any>(null);
     const [showPrintOptions, setShowPrintOptions] = useState(false);
+    const [dianResult, setDianResult] = useState<{ emitida?: boolean; cufe?: string; pdf_url?: string; pendiente?: boolean; error?: string } | null>(null);
 
     // Toast de aviso inline (no roba el foco como window.alert)
     const [stockWarning, setStockWarning] = useState<string | null>(null);
@@ -272,6 +273,17 @@ export default function POS() {
 
             const result = await ipc.invoke('save-venta', saleData);
 
+            // Capturar resultado DIAN para mostrarlo en el modal
+            if (settings.dianCompliance2026) {
+                if (result.dian_emitida) {
+                    setDianResult({ emitida: true, cufe: result.cufe, pdf_url: result.pdf_url });
+                } else if (result.dian_pendiente) {
+                    setDianResult({ pendiente: true, error: result.dian_error });
+                }
+            } else {
+                setDianResult(null);
+            }
+
             // Set last sale info for possible re-printing
             setLastSale({
                 id: result.ventaId,
@@ -284,12 +296,12 @@ export default function POS() {
                 cliente_identificacion: clienteIden,
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 medio_pago: medioPago,
-                cude_local: result.cude_local,
+                cude_local: result.cufe || result.cude_local || null,
                 iva_19,
                 iva_5,
                 ipoc: ipoc_8,
                 imp_saludable,
-                vendedor: user?.rol === 'Admin' 
+                vendedor: user?.rol === 'Admin'
                     ? (user?.nombre_propietario || user?.username || 'Sistema')
                     : (user?.empleado_nombre || user?.username || 'Sistema')
             });
@@ -530,13 +542,38 @@ export default function POS() {
                             <PaymentsIcon sx={{ fontSize: 32 }} />
                         </div>
                         <h2 className="text-xl font-bold text-slate-800 mb-2">¡Venta Exitosa!</h2>
-                        <p className="text-slate-500 text-sm mb-6">¿Deseas imprimir el ticket de esta venta?</p>
+                        <p className="text-slate-500 text-sm mb-4">¿Deseas imprimir el ticket de esta venta?</p>
+
+                        {/* Estado DIAN */}
+                        {settings.dianCompliance2026 && dianResult && (
+                            <div className={`rounded-2xl p-3 mb-4 text-left text-[11px] ${dianResult.emitida ? 'bg-emerald-50 border border-emerald-100' : 'bg-amber-50 border border-amber-100'}`}>
+                                {dianResult.emitida ? (
+                                    <>
+                                        <p className="font-black text-emerald-700 uppercase mb-1">✅ Factura electrónica emitida</p>
+                                        {dianResult.cufe && (
+                                            <p className="text-emerald-600 font-mono break-all leading-tight">
+                                                CUFE: {dianResult.cufe.substring(0, 32)}…
+                                            </p>
+                                        )}
+                                        {dianResult.pdf_url && (
+                                            <a href={dianResult.pdf_url} target="_blank" rel="noreferrer"
+                                                className="mt-1 block text-emerald-700 underline font-bold">
+                                                Ver PDF DIAN →
+                                            </a>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="font-black text-amber-700 uppercase mb-1">⚠️ Factura pendiente de emisión</p>
+                                        <p className="text-amber-600 leading-tight">{dianResult.error || 'Sin conexión con MATIAS API. Se reintentará automáticamente.'}</p>
+                                    </>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex flex-col gap-3">
                             <button
-                                onClick={() => {
-                                    window.print();
-                                }}
+                                onClick={() => { window.print(); }}
                                 className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-500/30 transition-all active:scale-95"
                             >
                                 <PrintIcon /> Imprimir Ticket
@@ -545,6 +582,7 @@ export default function POS() {
                                 onClick={() => {
                                     setShowPrintOptions(false);
                                     setLastSale(null);
+                                    setDianResult(null);
                                     setCart([]);
                                     setClienteIden('');
                                 }}

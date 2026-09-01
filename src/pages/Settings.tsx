@@ -29,6 +29,12 @@ export default function Settings() {
         municipio: settings.municipio || 'Bogotá D.C.',
         tasaICA: settings.tasaICA || 11.04,
         resolucionDIAN: settings.resolucionDIAN || '',
+        // MATIAS API
+        dian_resolucion: settings.dian_resolucion || '',
+        dian_prefijo: settings.dian_prefijo || '',
+        dian_numero_actual: settings.dian_numero_actual || '1',
+        dian_ciudad_id: settings.dian_ciudad_id || '836',
+        dian_email_consumidor: settings.dian_email_consumidor || '',
     });
 
     const [saving, setSaving] = useState(false);
@@ -240,18 +246,69 @@ export default function Settings() {
                                 </select>
                                 <p className="text-[10px] text-slate-400 mt-1 ml-1">Tasa ICA activa: {form.tasaICA}/1000</p>
                             </div>
-                            <div>
-                                <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">N° Resolución POS DIAN (referencia interna)</label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
-                                    value={form.resolucionDIAN}
-                                    onChange={e => setForm({ ...form, resolucionDIAN: e.target.value })}
-                                    placeholder="Ej: 000165-2023 (opcional)"
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">N° Resolución DIAN</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_resolucion}
+                                        onChange={e => setForm({ ...form, dian_resolucion: e.target.value })}
+                                        placeholder="Ej: 18764074347312"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Prefijo de Factura</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_prefijo}
+                                        onChange={e => setForm({ ...form, dian_prefijo: e.target.value.toUpperCase() })}
+                                        placeholder="Ej: SETP"
+                                        maxLength={4}
+                                    />
+                                </div>
                             </div>
-                            <div className="bg-sky-50 border border-sky-100 rounded-xl p-4 text-[11px] text-sky-800 leading-relaxed">
-                                <strong>ℹ️ Nota:</strong> Este sistema genera documentos POS de uso interno con CUDE local (no habilitado DIAN). La habilitación como Operador de Facturación Electrónica es responsabilidad del establecimiento comercial.
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Número Actual de Factura</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_numero_actual}
+                                        onChange={e => setForm({ ...form, dian_numero_actual: e.target.value })}
+                                        placeholder="1"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1 ml-1">El sistema lo incrementa automáticamente tras cada emisión.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">ID Ciudad (MATIAS)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_ciudad_id}
+                                        onChange={e => setForm({ ...form, dian_ciudad_id: e.target.value })}
+                                        placeholder="836 = Bogotá D.C."
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Email para Consumidor Final (anónimo)</label>
+                                <input
+                                    type="email"
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                    value={form.dian_email_consumidor}
+                                    onChange={e => setForm({ ...form, dian_email_consumidor: e.target.value })}
+                                    placeholder="sin-correo@consumidor.co"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1 ml-1">Se usa cuando el comprador no registra email. MATIAS lo requiere en el XML.</p>
+                            </div>
+                            <div className={`rounded-xl p-4 text-[11px] leading-relaxed border ${form.dian_resolucion ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                {form.dian_resolucion
+                                    ? <><strong>✅ MATIAS API configurada.</strong> Las ventas con "Facturación Electrónica" activa se emiten ante la DIAN automáticamente vía MATIAS API. Las facturas que fallen por conexión quedan en cola para reintento.</>
+                                    : <><strong>⚠️ Resolución DIAN pendiente.</strong> Completá los campos de arriba con los datos que te provee MATIAS API al habilitar tu emisor. Sin resolución, las ventas se guardan pero no se emite la factura electrónica.</>
+                                }
                             </div>
                         </div>
                     </div>
@@ -262,8 +319,8 @@ export default function Settings() {
                     </h2>
                     <div className="flex items-center justify-between bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
                         <div>
-                            <p className="text-sm font-bold text-slate-700">DIAN POS Electrónico 2026 (Interno)</p>
-                            <p className="text-[10px] text-slate-500">Genera CUDE local, desglose de tipos de IVA y campos Anexo 1.9.</p>
+                            <p className="text-sm font-bold text-slate-700">Facturación Electrónica DIAN (MATIAS API)</p>
+                            <p className="text-[10px] text-slate-500">Emite facturas ante la DIAN vía MATIAS API. Requiere resolución configurada arriba.</p>
                         </div>
                         <div
                             onClick={() => setForm({ ...form, dianCompliance2026: !form.dianCompliance2026 })}
@@ -280,8 +337,9 @@ export default function Settings() {
                         <FolderIcon fontSize="small" className="text-blue-500" /> Copia de Seguridad
                     </h2>
                     <p className="text-xs text-slate-500 mb-4">
-                        Haz clic en el botón de abajo para abrir la carpeta donde se guarda tu base de datos.
-                        Desde allí puedes copiar el archivo <code className="bg-slate-100 px-1 rounded text-primary-700 font-bold">commerce_data.sqlite</code> a un USB para respaldo.
+                        La base de datos se sincroniza automáticamente con Turso (nube). El archivo local de réplica
+                        está en <code className="bg-slate-100 px-1 rounded text-primary-700 font-bold">commerce_data_local.db</code>.
+                        Podés abrirlo desde aquí para hacer un respaldo adicional en USB.
                     </p>
                     <button
                         onClick={() => ipc.invoke('open-db-folder')}

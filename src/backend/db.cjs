@@ -1,45 +1,39 @@
-const sqlite3 = require('sqlite3').verbose();
+const { createClient } = require('@libsql/client');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
-
 const { app } = require('electron');
 
-// Determinamos la ruta de la base de datos
 const isProd = process.mainModule.filename.indexOf('app.asar') !== -1;
-let dbPath;
+const dbPath = isProd
+  ? path.join(app.getPath('userData'), 'commerce_data_local.db')
+  : path.join(__dirname, '..', '..', 'commerce_data_local.db');
 
-if (!isProd) {
-  dbPath = path.join(__dirname, '..', '..', 'commerce_data.sqlite');
-} else {
-  dbPath = path.join(app.getPath('userData'), 'commerce_data.sqlite');
-}
-
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error al abrir la base de datos', err.message);
-  } else {
-    console.log(`Conectado a la base de datos SQLite en: ${dbPath}`);
-  }
+// Embedded replica: escribe/lee local (rápido, funciona offline)
+// y sincroniza en background con Turso cuando hay internet
+const db = createClient({
+  url: `file:${dbPath}`,
+  syncUrl: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+  syncInterval: 60,
 });
 
-// Helper para ejecutar comandos en secuencia con Promesas
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
+// Sincronización inicial al arrancar (trae cambios pendientes de la nube)
+db.sync().catch((err) => console.error('Error en sync inicial:', err));
+
+// Helpers — la API de libSQL ya es async/await nativo
+async function dbRun(sql, params = []) {
+  return db.execute({ sql, args: params });
 }
 
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+async function dbGet(sql, params = []) {
+  const result = await db.execute({ sql, args: params });
+  return result.rows[0];
+}
+
+async function dbAll(sql, params = []) {
+  const result = await db.execute({ sql, args: params });
+  return result.rows;
 }
 
 async function initDb() {
@@ -90,7 +84,6 @@ async function initDb() {
       "fecha_egreso TEXT", "causal_egreso TEXT", "telefono TEXT", "indemnizacion_json TEXT",
       "ajustes_proximos_json TEXT"
     ];
-
     for (const col of empleadosMig) {
       await dbRun(`ALTER TABLE Empleados ADD COLUMN ${col}`).catch(() => { });
     }
@@ -115,7 +108,7 @@ async function initDb() {
     await dbRun(`CREATE TABLE IF NOT EXISTS ConceptosLiquidacion (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       liquidacion_id INTEGER NOT NULL,
-      tipo TEXT NOT NULL, 
+      tipo TEXT NOT NULL,
       descripcion TEXT NOT NULL,
       unidad TEXT,
       importe REAL NOT NULL,
@@ -138,13 +131,10 @@ async function initDb() {
       datos_suprimidos INTEGER DEFAULT 0
     )`);
 
-    const clientMig = [
-      "eps TEXT", "fondo_pensiones TEXT", "arl TEXT"
-    ];
+    const clientMig = ["eps TEXT", "fondo_pensiones TEXT", "arl TEXT"];
     for (const col of clientMig) {
       await dbRun(`ALTER TABLE Clientes ADD COLUMN ${col}`).catch(() => { });
     }
-
 
     // 4. Proveedores
     await dbRun(`CREATE TABLE IF NOT EXISTS Proveedores (
@@ -169,7 +159,7 @@ async function initDb() {
       dia_entrega TEXT,
       limite_credito REAL DEFAULT 0,
       minimo_compra REAL DEFAULT 0,
-      moneda_compra TEXT DEFAULT 'ARS',
+      moneda_compra TEXT DEFAULT 'COP',
       retencion_ganancias REAL DEFAULT 0,
       retencion_iibb REAL DEFAULT 0,
       vencimiento_certificado_exencion TEXT,
@@ -181,7 +171,7 @@ async function initDb() {
       "direccion TEXT", "email_compras TEXT", "email_pagos TEXT", "plazo_pago INTEGER DEFAULT 0",
       "cbu TEXT", "rubro TEXT", "saldo_actual REAL DEFAULT 0", "preventista_nombre TEXT",
       "preventista_telefono TEXT", "dia_visita TEXT", "dia_entrega TEXT",
-      "limite_credito REAL DEFAULT 0", "minimo_compra REAL DEFAULT 0", "moneda_compra TEXT DEFAULT 'ARS'",
+      "limite_credito REAL DEFAULT 0", "minimo_compra REAL DEFAULT 0", "moneda_compra TEXT DEFAULT 'COP'",
       "retencion_ganancias REAL DEFAULT 0", "retencion_iibb REAL DEFAULT 0",
       "vencimiento_certificado_exencion TEXT", "saldo_envases INTEGER DEFAULT 0"
     ];
@@ -212,7 +202,6 @@ async function initDb() {
     await dbRun(`ALTER TABLE Productos ADD COLUMN iva_alicuota REAL DEFAULT 21`).catch(() => { });
     await dbRun(`ALTER TABLE Productos ADD COLUMN tasa_internos REAL DEFAULT 0`).catch(() => { });
     await dbRun(`UPDATE Productos SET iva_alicuota = 21 WHERE iva_alicuota IS NULL`);
-    // Colombia 2026: Tipo de impuesto por producto (IVA_19, IVA_5, EXENTO, EXCLUIDO, IPOC_8, SALUDABLE_BEBIDA, SALUDABLE_ULTRAPROCESADO)
     await dbRun(`ALTER TABLE Productos ADD COLUMN tipo_impuesto_co TEXT DEFAULT 'IVA_19'`).catch(() => { });
     await dbRun(`ALTER TABLE Productos ADD COLUMN es_producto_saludable INTEGER DEFAULT 0`).catch(() => { });
 
@@ -234,15 +223,14 @@ async function initDb() {
       valor TEXT NOT NULL
     )`);
 
-    // Initialize country to Colombia if not set
     const countrySet = await dbGet('SELECT valor FROM Configuracion WHERE clave = ?', ['pais']);
     if (!countrySet) {
       await dbRun('INSERT INTO Configuracion (clave, valor) VALUES (?, ?)', ['pais', 'Colombia']);
     }
 
-    // 2. Empleados - Colombia 2026 Fields
+    // Empleados — campos Colombia 2026
     const colombiaEmpFields = [
-      "cedula_ciudadania TEXT", "documento_extranjeria TEXT", "rut TEXT", 
+      "cedula_ciudadania TEXT", "documento_extranjeria TEXT", "rut TEXT",
       "eps TEXT", "fondo_pensiones TEXT", "arl TEXT",
       "vacunacion_rabia BOOLEAN DEFAULT 0", "matricula_profesional TEXT"
     ];
@@ -250,20 +238,18 @@ async function initDb() {
       await dbRun(`ALTER TABLE Empleados ADD COLUMN ${col}`).catch(() => { });
     }
 
-    // 4. Proveedores - Colombia 2026 Fields
+    // Proveedores — campos Colombia 2026
     const colombiaProvFields = [
       "nit TEXT", "responsable_iva BOOLEAN DEFAULT 1",
-      "responsabilidad_tributaria TEXT DEFAULT 'R-99-PN'", 
+      "responsabilidad_tributaria TEXT DEFAULT 'R-99-PN'",
       "codigo_postal TEXT", "email_facturacion TEXT", "codigo_ciiu TEXT"
     ];
     for (const col of colombiaProvFields) {
       await dbRun(`ALTER TABLE Proveedores ADD COLUMN ${col}`).catch(() => { });
     }
 
-    // 6. Productos - Colombia 2026 Fields
-    const colombiaProdFields = [
-      "registro_ica TEXT", "lote TEXT", "fecha_vencimiento TEXT"
-    ];
+    // Productos — campos Colombia 2026
+    const colombiaProdFields = ["registro_ica TEXT", "lote TEXT", "fecha_vencimiento TEXT"];
     for (const col of colombiaProdFields) {
       await dbRun(`ALTER TABLE Productos ADD COLUMN ${col}`).catch(() => { });
     }
@@ -298,7 +284,6 @@ async function initDb() {
     await dbRun(`ALTER TABLE Ventas ADD COLUMN impuestos_internos REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN cliente_identificacion TEXT`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN regimen_transparencia BOOLEAN DEFAULT 0`).catch(() => { });
-
     await dbRun(`ALTER TABLE Ventas ADD COLUMN cude_local TEXT`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN medio_pago TEXT DEFAULT 'EFECTIVO'`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN es_b2b INTEGER DEFAULT 0`).catch(() => { });
@@ -307,7 +292,7 @@ async function initDb() {
     await dbRun(`ALTER TABLE Ventas ADD COLUMN ipoc REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Ventas ADD COLUMN imp_saludable REAL DEFAULT 0`).catch(() => { });
 
-    // 9. DetallesVenta
+    // 9.1 DetallesVenta
     await dbRun(`CREATE TABLE IF NOT EXISTS DetallesVenta (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       venta_id INTEGER NOT NULL,
@@ -348,12 +333,11 @@ async function initDb() {
     )`);
     await dbRun(`ALTER TABLE Pedidos ADD COLUMN percepciones_recibidas REAL DEFAULT 0`).catch(() => { });
     await dbRun(`ALTER TABLE Pedidos ADD COLUMN retenciones_aplicadas REAL DEFAULT 0`).catch(() => { });
-    
-    // Colombia 2026 - Pedidos DIAN Eventos
+
     const colombiaPedidosFields = [
       "cufe TEXT", "fecha_emision_fe TEXT",
       "evento_acuse_recibo BOOLEAN DEFAULT 0",
-      "evento_recibo_bienes BOOLEAN DEFAULT 0", 
+      "evento_recibo_bienes BOOLEAN DEFAULT 0",
       "evento_aceptacion_expresa BOOLEAN DEFAULT 0"
     ];
     for (const col of colombiaPedidosFields) {
@@ -372,11 +356,30 @@ async function initDb() {
       FOREIGN KEY(producto_id) REFERENCES Productos(id)
     )`);
 
+    // 13. FacturasElectronicas — registro DIAN por venta
+    await dbRun(`CREATE TABLE IF NOT EXISTS FacturasElectronicas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venta_id INTEGER NOT NULL UNIQUE,
+      numero_factura INTEGER,
+      cufe TEXT,
+      estado TEXT DEFAULT 'PENDIENTE',
+      estado_dian TEXT,
+      descripcion_dian TEXT,
+      error_mensaje TEXT,
+      xml_url TEXT,
+      pdf_url TEXT,
+      qr_url TEXT,
+      qr_dian_url TEXT,
+      fecha_emision DATETIME DEFAULT CURRENT_TIMESTAMP,
+      intentos INTEGER DEFAULT 0,
+      FOREIGN KEY(venta_id) REFERENCES Ventas(id)
+    )`);
+
     // Seed Sucursal Principal
     const countSuc = await dbGet('SELECT COUNT(*) as count FROM Sucursales');
     if (countSuc.count === 0) {
       const res = await dbRun(`INSERT INTO Sucursales (nombre, direccion) VALUES ('Sede Principal', 'Dirección por defecto')`);
-      const sucursalId = res.lastID;
+      const sucursalId = Number(res.lastInsertRowid);
 
       const seedProducts = [
         { codigo: '23232323', nombre: 'Galletitas Don Satur', precio_compra: 500, precio_venta: 750 },
@@ -389,7 +392,8 @@ async function initDb() {
           [p.codigo, p.nombre, p.precio_compra, p.precio_venta]);
         const prod = await dbGet('SELECT id FROM Productos WHERE codigo = ?', [p.codigo]);
         if (prod) {
-          await dbRun(`INSERT OR IGNORE INTO Inventario (producto_id, sucursal_id, cantidad) VALUES (?, ?, ?)`, [prod.id, sucursalId, 50]);
+          await dbRun(`INSERT OR IGNORE INTO Inventario (producto_id, sucursal_id, cantidad) VALUES (?, ?, ?)`,
+            [prod.id, sucursalId, 50]);
         }
       }
     }
@@ -398,7 +402,8 @@ async function initDb() {
     const countUser = await dbGet('SELECT COUNT(*) as count FROM Usuarios');
     if (countUser.count === 0) {
       const defaultHash = crypto.createHash('sha256').update('admin').digest('hex');
-      await dbRun(`INSERT INTO Usuarios (username, password_hash, rol) VALUES (?, ?, ?)`, ['Principal', defaultHash, 'Admin']);
+      await dbRun(`INSERT INTO Usuarios (username, password_hash, rol) VALUES (?, ?, ?)`,
+        ['Principal', defaultHash, 'Admin']);
     }
 
     console.log("Base de datos inicializada correctamente.");
@@ -408,7 +413,6 @@ async function initDb() {
   }
 }
 
-// Exportamos una promesa que indica cuando la DB está lista
 const dbReady = initDb();
 
-module.exports = { db, dbReady, dbPath };
+module.exports = { db, dbReady, dbPath, dbRun, dbGet, dbAll };
