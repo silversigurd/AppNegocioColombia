@@ -40,7 +40,7 @@ export default function POS() {
     // Last Sale Info for Printing
     const [lastSale, setLastSale] = useState<any>(null);
     const [showPrintOptions, setShowPrintOptions] = useState(false);
-    const [dianResult, setDianResult] = useState<{ emitida?: boolean; cufe?: string; pdf_url?: string; pendiente?: boolean; error?: string } | null>(null);
+    const [dianResult, setDianResult] = useState<{ emitida?: boolean; cufe?: string; pdf_url?: string; qr_dian_url?: string; pendiente?: boolean; error?: string } | null>(null);
 
     // Toast de aviso inline (no roba el foco como window.alert)
     const [stockWarning, setStockWarning] = useState<string | null>(null);
@@ -276,7 +276,7 @@ export default function POS() {
             // Capturar resultado DIAN para mostrarlo en el modal
             if (settings.dianCompliance2026) {
                 if (result.dian_emitida) {
-                    setDianResult({ emitida: true, cufe: result.cufe, pdf_url: result.pdf_url });
+                    setDianResult({ emitida: true, cufe: result.cufe, pdf_url: result.pdf_url, qr_dian_url: result.qr_dian_url });
                 } else if (result.dian_pendiente) {
                     setDianResult({ pendiente: true, error: result.dian_error });
                 }
@@ -297,6 +297,11 @@ export default function POS() {
                 regimen_transparencia: settings.arcaCompliance2026 ? consumoTransparente : false,
                 medio_pago: medioPago,
                 cude_local: result.cufe || result.cude_local || null,
+                dian_qr_base64: result.qr_base64 || null,
+                dian_qr_dian_url: result.qr_dian_url || null,
+                dian_numero_factura: result.numero_factura || null,
+                dian_prefijo: result.prefijo || null,
+                dian_pendiente: settings.dianCompliance2026 ? Boolean(result.dian_pendiente) : false,
                 iva_19,
                 iva_5,
                 ipoc: ipoc_8,

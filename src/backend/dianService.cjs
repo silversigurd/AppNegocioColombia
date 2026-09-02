@@ -374,7 +374,7 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
   if (!Array.isArray(errores)) errores = errores ? [String(errores)] : [];
   errores = errores.filter(Boolean);
 
-  return {
+  const result = {
     success: isValid,
     queued,
     cufe: data.XmlDocumentKey || r.XmlDocumentKey || null,
@@ -387,9 +387,32 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
     pdf_url: data.pdf?.url || data.GraphicRepresentation?.url || null,
     qr_url: data.qr?.url || null,
     qr_dian_url: data.qr?.qrDian || r.QRCode || null,
+    qr_base64: null,
     uuid: data.uuid || null,
     raw: data,
   };
+
+  // El QR (imagen PNG que genera MATIAS con el formato exacto que exige la DIAN)
+  // se descarga ahora y se guarda embebido, para que el ticket lo imprima aunque
+  // después no haya internet o el host del QR se caiga.
+  if (isValid && result.qr_url) {
+    result.qr_base64 = await _fetchQrDataUri(result.qr_url);
+  }
+
+  return result;
+}
+
+async function _fetchQrDataUri(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') || 'image/png';
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 200 * 1024) return null; // sanity: un QR pesa ~1-3 KB
+    return `data:${type};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
 }
 
 module.exports = { emitirFactura, buildPayload };

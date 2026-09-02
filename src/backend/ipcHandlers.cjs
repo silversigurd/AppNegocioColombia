@@ -143,12 +143,12 @@ async function setupIpcHandlers() {
                 await dbRun(
                     `UPDATE FacturasElectronicas SET
                         estado = 'EMITIDA', cufe = ?, estado_dian = ?, descripcion_dian = ?,
-                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?
+                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?, qr_base64 = ?
                      WHERE venta_id = ?`,
                     [
                         resultado.cufe, resultado.estado_dian, resultado.descripcion_dian,
                         resultado.xml_url, resultado.pdf_url, resultado.qr_url, resultado.qr_dian_url,
-                        ventaId
+                        resultado.qr_base64, ventaId
                     ]
                 );
                 // Guardar CUFE en la venta también
@@ -160,8 +160,11 @@ async function setupIpcHandlers() {
                     dian_emitida: true,
                     cufe: resultado.cufe,
                     pdf_url: resultado.pdf_url,
+                    qr_url: resultado.qr_url,
                     qr_dian_url: resultado.qr_dian_url,
+                    qr_base64: resultado.qr_base64,
                     numero_factura: numeroFactura,
+                    prefijo: settings.dian_prefijo || '',
                 };
             } else if (resultado.queued) {
                 // MATIAS la recibió pero la DIAN aún no respondió — queda en cola para reintento
@@ -323,7 +326,24 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('get-venta-por-id', async (event, ventaId) => {
-        return dbGet(`SELECT * FROM Ventas WHERE id = ?`, [ventaId]);
+        const venta = await dbGet(`SELECT * FROM Ventas WHERE id = ?`, [ventaId]);
+        if (!venta) return null;
+
+        // Adjuntar datos de la factura electrónica para reimprimir el ticket con CUFE + QR
+        const fe = await dbGet(
+            `SELECT numero_factura, cufe, estado, qr_base64, qr_dian_url FROM FacturasElectronicas WHERE venta_id = ?`,
+            [ventaId]
+        );
+        if (fe) {
+            venta.cude_local = venta.cude_local || fe.cufe;
+            venta.dian_qr_base64 = fe.qr_base64 || null;
+            venta.dian_qr_dian_url = fe.qr_dian_url || null;
+            venta.dian_numero_factura = fe.numero_factura || null;
+            venta.dian_pendiente = fe.estado === 'PENDIENTE' || fe.estado === 'ERROR';
+        }
+        const pref = await dbGet("SELECT valor FROM Configuracion WHERE clave = 'dian_prefijo'");
+        venta.dian_prefijo = pref ? pref.valor : null;
+        return venta;
     });
 
     // --- PROVEEDORES ---
@@ -1072,12 +1092,12 @@ async function setupIpcHandlers() {
                 await dbRun(
                     `UPDATE FacturasElectronicas SET
                         estado = 'EMITIDA', cufe = ?, estado_dian = ?, descripcion_dian = ?,
-                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?, error_mensaje = NULL
+                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?, qr_base64 = ?, error_mensaje = NULL
                      WHERE venta_id = ?`,
                     [
                         resultado.cufe, resultado.estado_dian, resultado.descripcion_dian,
                         resultado.xml_url, resultado.pdf_url, resultado.qr_url, resultado.qr_dian_url,
-                        venta_id
+                        resultado.qr_base64, venta_id
                     ]
                 );
                 await dbRun('UPDATE Ventas SET cude_local = ? WHERE id = ?', [resultado.cufe, venta_id]);

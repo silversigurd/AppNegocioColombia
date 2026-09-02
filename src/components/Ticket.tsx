@@ -32,7 +32,12 @@ export default function Ticket({
     const ticketCliente = ventaData?.cliente_identificacion ?? cliente_identificacion;
     const ticketVendedor = ventaData?.vendedor ?? vendedor;
     // Colombia 2026 fields
-    const cudeLocal = ventaData?.cude_local;
+    const cufe = ventaData?.cude_local;
+    const dianQrBase64 = ventaData?.dian_qr_base64;
+    const dianQrUrl = ventaData?.dian_qr_dian_url;
+    const dianNumero = ventaData?.dian_numero_factura;
+    const dianPrefijo = ventaData?.dian_prefijo;
+    const dianPendiente = ventaData?.dian_pendiente;
     const medioPagoRaw = ventaData?.medio_pago || ventaData?.medioPago || medio_pago || 'EFECTIVO';
     const iva19 = ventaData?.iva_19 ?? 0;
     const iva5 = ventaData?.iva_5 ?? 0;
@@ -111,23 +116,41 @@ export default function Ticket({
     }
 
     if (settings.dianCompliance2026) {
-        ticketText += centerText('SISTEMA POS ELECTRÓNICO DIAN 2026', width) + '\n';
-        const resolucion = settings.resolucionDIAN || 'Sin resolución registrada';
-        ticketText += centerText(`Resolución DIAN: ${resolucion}`, width) + '\n';
-        ticketText += centerText('No aplica Retenciones en POS', width) + '\n';
-        if (cudeLocal) {
-            ticketText += centerText(`CUDE: ${cudeLocal}`, width) + '\n';
+        ticketText += centerText('FACTURA ELECTRÓNICA DE VENTA', width) + '\n';
+        const resolucion = settings.dian_resolucion || settings.resolucionDIAN || 'Sin resolución registrada';
+        ticketText += centerText(`Resolución DIAN N° ${resolucion}`, width) + '\n';
+        if (dianPrefijo && dianNumero) {
+            ticketText += centerText(`Factura: ${dianPrefijo}${dianNumero}`, width) + '\n';
+        }
+        if (cufe) {
+            ticketText += centerText('CUFE:', width) + '\n';
+            const c = String(cufe);
+            for (let i = 0; i < c.length; i += width) ticketText += c.slice(i, i + width) + '\n';
+        } else if (dianPendiente) {
+            ticketText += centerText('Factura electrónica EN TRÁMITE ante la DIAN.', width) + '\n';
+            ticketText += centerText('Se envía cuando se restablezca la conexión.', width) + '\n';
         }
         ticketText += border + '\n';
     }
-    
+
     ticketText += centerText('¡GRACIAS POR SU COMPRA!', width) + '\n';
+
+    const showQr = settings.dianCompliance2026 && cufe && (dianQrBase64 || dianQrUrl);
 
     return (
         <div className="print-only text-black bg-white mx-auto w-max p-4">
             <pre className="font-mono text-[11px] whitespace-pre-wrap m-0 p-0 leading-tight">
                 {ticketText}
             </pre>
+            {showQr && (
+                <div className="flex flex-col items-center mt-1 font-mono text-[9px] leading-tight">
+                    {dianQrBase64
+                        ? <img src={dianQrBase64} alt="QR DIAN" className="w-32 h-32" />
+                        : <img src={dianQrUrl} alt="QR DIAN" className="w-32 h-32" />}
+                    <span className="mt-1">Verifique esta factura en:</span>
+                    <span className="break-all text-center">catalogo-vpfe.dian.gov.co</span>
+                </div>
+            )}
         </div>
     );
 }

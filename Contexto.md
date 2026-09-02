@@ -154,7 +154,7 @@ Bug de MATIAS sandbox: con `graphic_representation: 1` o `send_email: 1` da HTTP
 **Herramienta:** `node scripts/test-dian.cjs [--send] [--discover]` — prueba el flujo real contra el sandbox usando `emitirFactura()`. Config override en `scripts/dian-test.local.json` (git-ignored).
 
 ### Pendientes DIAN
-- Mostrar CUFE + QR en el ticket impreso (`Ticket.tsx`) — hoy muestra "CUDE" y no el QR.
+- ✅ CUFE + QR en el ticket (`Ticket.tsx`, 2026-09-02): título "FACTURA ELECTRÓNICA DE VENTA", `dian_resolucion` real, prefijo+número, CUFE completo, y el QR embebido. `emitirFactura` descarga el PNG del QR de MATIAS y lo guarda como data-URI (`qr_base64`, columna nueva en `FacturasElectronicas`) → imprime offline. `get-venta-por-id` hace join con `FacturasElectronicas` para reimpresiones.
 - UI de facturas pendientes / reintento (handlers existen, sin frontend).
 - Impuesto saludable: se manda como 20% ad-valorem; la ley IBUA/ICUI es tarifa nominal por unidad (el sandbox igual lo acepta).
 - Subir logo del emisor al portal MATIAS para habilitar PDF + envío por email.

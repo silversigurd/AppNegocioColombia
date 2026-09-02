@@ -414,6 +414,7 @@ async function initDb() {
       intentos INTEGER DEFAULT 0,
       FOREIGN KEY(venta_id) REFERENCES Ventas(id)
     )`);
+    await dbRun(`ALTER TABLE FacturasElectronicas ADD COLUMN qr_base64 TEXT`).catch(() => { });
 
     // Seed Sucursal Principal
     const countSuc = await dbGet('SELECT COUNT(*) as count FROM Sucursales');
