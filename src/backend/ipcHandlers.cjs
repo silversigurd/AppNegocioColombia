@@ -163,6 +163,16 @@ async function setupIpcHandlers() {
                     qr_dian_url: resultado.qr_dian_url,
                     numero_factura: numeroFactura,
                 };
+            } else if (resultado.queued) {
+                // MATIAS la recibió pero la DIAN aún no respondió — queda en cola para reintento
+                await dbRun(
+                    `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', cufe = ?, error_mensaje = ? WHERE venta_id = ?`,
+                    [resultado.cufe, 'En cola de la DIAN — se reintenta la consulta.', ventaId]
+                );
+                return {
+                    success: true, ventaId, dian_pendiente: true,
+                    dian_error: 'Factura en cola de la DIAN.', numero_factura: numeroFactura,
+                };
             } else {
                 // MATIAS respondió pero DIAN rechazó
                 const errorMsg = resultado.errores_dian.join(' | ') || resultado.descripcion_dian || 'Rechazada por DIAN';

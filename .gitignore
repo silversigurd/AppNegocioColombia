@@ -35,3 +35,6 @@ src/backend/secrets.generated.cjs
 # Datos y salidas de instaladores por cliente
 scripts/clientes.local.json
 dist-clientes
+
+# Config local de pruebas DIAN
+scripts/dian-test.local.json

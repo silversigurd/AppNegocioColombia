@@ -29,6 +29,8 @@ interface BusinessSettings {
     dian_numero_actual: string;    // Número secuencial actual (ej: 1)
     dian_ciudad_id: string;        // ID de ciudad MATIAS (Bogotá = 836)
     dian_email_consumidor: string; // Email para compradores anónimos
+    dian_graphic_representation: boolean; // MATIAS genera el PDF (requiere logo cargado en su portal)
+    dian_send_email: boolean;            // MATIAS envía la factura por email al cliente
 }
 
 const defaultSettings: BusinessSettings = {
@@ -58,6 +60,8 @@ const defaultSettings: BusinessSettings = {
     dian_numero_actual: '1',
     dian_ciudad_id: '836',
     dian_email_consumidor: '',
+    dian_graphic_representation: false,
+    dian_send_email: false,
 };
 
 interface SettingsContextType {
@@ -110,6 +114,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 dian_numero_actual: dbSettings.dian_numero_actual || '1',
                 dian_ciudad_id: dbSettings.dian_ciudad_id || '836',
                 dian_email_consumidor: dbSettings.dian_email_consumidor || '',
+                dian_graphic_representation: parseBool(dbSettings.dian_graphic_representation),
+                dian_send_email: parseBool(dbSettings.dian_send_email),
             });
         } catch (e) {
             console.error('Failed to load settings from DB', e);

@@ -138,6 +138,27 @@ Sin esto el sistema no es apto para operar legalmente con un negocio formal en C
 ### Nota importante
 El sandbox no requiere certificado digital ni habilitación real ante la DIAN — sirve para desarrollar y probar el flujo técnico. La habilitación real (RUT, certificado digital, resolución DIAN) es un trámite aparte que se hace **por cada negocio real** que use el sistema en producción, no antes de tener un cliente concreto.
 
+### Estado de la prueba end-to-end (2026-09-02) — ✅ FACTURA AUTORIZADA
+
+Contrato real de MATIAS (verificado contra sandbox):
+- Base URL `https://sandbox-api.matias-api.com/api/ubl2.1`, auth `Authorization: Bearer <PAT>`. La `MATIAS_API_KEY` del `.env` es ese PAT.
+- `POST /invoice` — estructura del payload confirmada; el `buildPayload` de `dianService.cjs` coincide con la doc.
+- El **sandbox ya trae una resolución precargada**: `resolution_number: "18760000001"`, `prefix: "FEV"`, rango 1–1000, vigente hasta 2030. No hay que registrar nada para probar.
+- `GET /taxes` devuelve `{ dataRecords: { data: [...] } }`. IDs reales: IVA=**1**, INC (impoconsumo 8%)=**4**, IBUA (bebidas azucaradas)=**20**, ICUI (comestibles ultraprocesados)=**21**. `dianService` ya usa estos.
+- El emisor/empresa NO va en el payload — MATIAS lo deriva del PAT. `GET /company` muestra los datos (COMMERCEOS PRO SAS, NIT 900123633).
+- Respuesta OK: `{ XmlDocumentKey: <CUFE>, response: { IsValid:"true", StatusCode:"00", StatusMessage, ... }, qr: { url, qrDian } }` — **NO trae `success:true` en la raíz** (el `emitirFactura` ya se corrigió para leer `response.IsValid`/`StatusCode`).
+- El **QR viene aunque `graphic_representation` esté en 0** (`qr.url` = PNG, `qr.qrDian` = URL de verificación DIAN).
+
+Bug de MATIAS sandbox: con `graphic_representation: 1` o `send_email: 1` da HTTP 500 (`Attempt to read property "image" on null`) porque la empresa no tiene **logo** cargado. El logo se sube desde el **portal web de MATIAS** (`sandbox-auth.matias-api.com`), no por API (`/company` es GET-only; `PUT /company/logo` existe pero su contrato no está documentado y devuelve "La empresa no existe"). Por eso `buildPayload` deja ambos en 0 por default y hay toggles en Ajustes (`dian_graphic_representation`, `dian_send_email`) para activarlos cuando el negocio ya cargó su logo.
+
+**Herramienta:** `node scripts/test-dian.cjs [--send] [--discover]` — prueba el flujo real contra el sandbox usando `emitirFactura()`. Config override en `scripts/dian-test.local.json` (git-ignored).
+
+### Pendientes DIAN
+- Mostrar CUFE + QR en el ticket impreso (`Ticket.tsx`) — hoy muestra "CUDE" y no el QR.
+- UI de facturas pendientes / reintento (handlers existen, sin frontend).
+- Impuesto saludable: se manda como 20% ad-valorem; la ley IBUA/ICUI es tarifa nominal por unidad (el sandbox igual lo acepta).
+- Subir logo del emisor al portal MATIAS para habilitar PDF + envío por email.
+
 ---
 
 ## Manejo de credenciales (2026-09-02)

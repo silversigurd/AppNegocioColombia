@@ -14,16 +14,19 @@ const BASE_URL = secret('MATIAS_API_URL') || 'https://sandbox-api.matias-api.com
 
 // ─── Catálogo de impuestos ────────────────────────────────────────────────────
 // Mapa de tipo_impuesto_co (campo en tabla Productos) → {tax_id, percent}.
-// tax_id "1" = IVA según especificación UBL 2.1 DIAN.
-// Los IDs de IPOC y saludable se complementan al cargar el catálogo vía GET /taxes.
+// tax_id = campo "id" del catálogo GET /taxes de MATIAS (verificado en sandbox 2026-09):
+//   1  = IVA (code 01)
+//   4  = INC — Impuesto Nacional al Consumo, 8% restaurantes/bares (code 04)
+//   20 = IBUA — bebidas ultraprocesadas azucaradas (code 34)
+//   21 = ICUI — comestibles ultraprocesados (code 35)
 let TAX_CATALOG = {
   IVA_19:                   { tax_id: '1',  percent: 19 },
   IVA_5:                    { tax_id: '1',  percent: 5  },
   EXENTO:                   null,
   EXCLUIDO:                 null,
-  IPOC_8:                   { tax_id: '18', percent: 8  }, // Impuesto al Consumo (Art. 512-1 ET)
-  SALUDABLE_BEBIDA:         { tax_id: '22', percent: null }, // nominal por unidad — verificar
-  SALUDABLE_ULTRAPROCESADO: { tax_id: '23', percent: null }, // nominal por unidad — verificar
+  IPOC_8:                   { tax_id: '4',  percent: 8  }, // INC (Art. 512-1 ET)
+  SALUDABLE_BEBIDA:         { tax_id: '20', percent: null }, // IBUA — tarifa nominal por unidad
+  SALUDABLE_ULTRAPROCESADO: { tax_id: '21', percent: null }, // ICUI — tarifa nominal por unidad
 };
 
 // Mapeo medio_pago del sistema → means_payment_id DIAN (UBL 2.1)
@@ -47,23 +50,17 @@ async function _loadTaxCatalog() {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return;
-    const data = await res.json();
-    // data es un array de { id, name, description, ... }
-    // Actualizamos los IDs si encontramos coincidencias por nombre
-    if (Array.isArray(data)) {
-      for (const tax of data) {
-        const name = (tax.name || tax.description || '').toLowerCase();
-        if (name.includes('consumo') && name.includes('8')) {
-          TAX_CATALOG.IPOC_8 = { tax_id: String(tax.id), percent: 8 };
-        }
-        if (name.includes('saludable') && name.includes('bebida')) {
-          TAX_CATALOG.SALUDABLE_BEBIDA = { tax_id: String(tax.id), percent: null };
-        }
-        if (name.includes('saludable') && name.includes('ultra')) {
-          TAX_CATALOG.SALUDABLE_ULTRAPROCESADO = { tax_id: String(tax.id), percent: null };
-        }
-      }
-    }
+    const json = await res.json();
+    // Respuesta: { dataRecords: { data: [ { id, name_taxe, description, code } ] }, success }
+    const list = json?.dataRecords?.data || (Array.isArray(json) ? json : []);
+    const idPorCodigo = {};
+    for (const tax of list) idPorCodigo[String(tax.code)] = String(tax.id);
+
+    // Confirmamos/actualizamos los IDs por código DIAN (más estable que el nombre)
+    if (idPorCodigo['04']) TAX_CATALOG.IPOC_8.tax_id = idPorCodigo['04'];                  // INC
+    if (idPorCodigo['34']) TAX_CATALOG.SALUDABLE_BEBIDA.tax_id = idPorCodigo['34'];        // IBUA
+    if (idPorCodigo['35']) TAX_CATALOG.SALUDABLE_ULTRAPROCESADO.tax_id = idPorCodigo['35']; // ICUI
+
     _catalogLoaded = true;
   } catch (err) {
     console.warn('[DIAN] No se pudo cargar catálogo de impuestos:', err.message);
@@ -209,7 +206,7 @@ function _buildLines(lineas) {
     }
     if (l.ipocPercent > 0) {
       tax_totals.push({
-        tax_id: TAX_CATALOG.IPOC_8?.tax_id || '18',
+        tax_id: TAX_CATALOG.IPOC_8?.tax_id || '4',
         tax_amount: l.ipocAmount,
         taxable_amount: l.baseNeta,
         percent: l.ipocPercent,
@@ -217,7 +214,7 @@ function _buildLines(lineas) {
     }
     if (l.saludablePercent > 0) {
       tax_totals.push({
-        tax_id: TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '22',
+        tax_id: TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '20',
         tax_amount: l.saludableAmount,
         taxable_amount: l.baseNeta,
         percent: l.saludablePercent,
@@ -252,8 +249,8 @@ function _buildTaxTotals(lineas) {
 
   for (const l of lineas) {
     if (l.ivaPercent > 0) add('1', l.ivaPercent, l.baseNeta, l.ivaAmount);
-    if (l.ipocPercent > 0) add(TAX_CATALOG.IPOC_8?.tax_id || '18', l.ipocPercent, l.baseNeta, l.ipocAmount);
-    if (l.saludablePercent > 0) add(TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '22', l.saludablePercent, l.baseNeta, l.saludableAmount);
+    if (l.ipocPercent > 0) add(TAX_CATALOG.IPOC_8?.tax_id || '4', l.ipocPercent, l.baseNeta, l.ipocAmount);
+    if (l.saludablePercent > 0) add(TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '20', l.saludablePercent, l.baseNeta, l.saludableAmount);
   }
 
   return Object.values(groups);
@@ -284,12 +281,21 @@ function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
     );
   }
 
+  // graphic_representation / send_email: MATIAS genera el PDF (y lo manda por email).
+  // Requiere que el emisor tenga logo cargado en el portal de MATIAS; sin logo,
+  // su generador de PDF falla (500). Por eso default 0 y se habilita desde settings
+  // cuando el negocio ya cargó su logo.
+  const graphicRep = _parseBool(settings.dian_graphic_representation, false) ? 1 : 0;
+  const customerEmail = _buildCustomer(cliente, settings, cliente_identificacion).email;
+  const sendEmail = (graphicRep === 1 && _parseBool(settings.dian_send_email, false) && customerEmail
+    && !/consumidor\.co$/i.test(customerEmail)) ? 1 : 0;
+
   return {
     resolution_number: String(settings.dian_resolucion || ''),
     prefix: settings.dian_prefijo || '',
     document_number: String(numeroFactura),
-    graphic_representation: 0,
-    send_email: 1,
+    graphic_representation: graphicRep,
+    send_email: sendEmail,
     operation_type_id: 1,
     type_document_id: 7,       // Factura electrónica de venta
     date: dateStr,
@@ -343,26 +349,45 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
     throw new Error(`Sin conexión con MATIAS API: ${err.message}`);
   }
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
-  // HTTP 200/201 = procesado (puede ser aprobado o con warnings)
-  // HTTP 422 = rechazado por DIAN con detalles
-  // Otros 4xx/5xx = error inesperado
+  // Respuestas observadas en sandbox:
+  //  OK:        { uuid, message, send_to_queue, XmlDocumentKey (CUFE),
+  //              response: { IsValid:"true", StatusCode:"00", StatusDescription, StatusMessage,
+  //                          ErrorMessage:{string:""}, XmlBase64Bytes } }
+  //  Error MATIAS (no DIAN): { success:false, message, line, file }
+  //  Rechazo DIAN:  response.IsValid:"false" + response.ErrorMessage.string con detalle
+  if (data && data.success === false) {
+    throw new Error(`MATIAS API ${res.status}: ${data.message || JSON.stringify(data)}`);
+  }
   if (!res.ok && res.status !== 422) {
     throw new Error(`MATIAS API ${res.status}: ${data.message || JSON.stringify(data)}`);
   }
 
+  const r = data.response || {};
+  const isValid = String(r.IsValid).toLowerCase() === 'true' || r.StatusCode === '00';
+  const queued = !isValid && (data.send_to_queue === 1 || data.send_to_queue === true);
+
+  // ErrorMessage.string puede venir como "", string, o array
+  let errores = r.ErrorMessage && r.ErrorMessage.string !== undefined ? r.ErrorMessage.string : [];
+  if (typeof errores === 'string') errores = errores ? [errores] : [];
+  if (!Array.isArray(errores)) errores = errores ? [String(errores)] : [];
+  errores = errores.filter(Boolean);
+
   return {
-    success: data.success === true,
-    cufe: data.XmlDocumentKey || null,
-    estado_dian: data.response?.StatusCode || null,
-    descripcion_dian: data.response?.StatusDescription || null,
-    mensaje_dian: data.response?.StatusMessage || null,
-    errores_dian: data.response?.ErrorMessage?.string || [],
-    xml_url: data.AttachedDocument?.url || null,
-    pdf_url: data.pdf?.url || null,
+    success: isValid,
+    queued,
+    cufe: data.XmlDocumentKey || r.XmlDocumentKey || null,
+    estado_dian: r.StatusCode || null,
+    descripcion_dian: r.StatusDescription || null,
+    mensaje_dian: r.StatusMessage || null,
+    errores_dian: errores,
+    xml_base64: r.XmlBase64Bytes || null,
+    xml_url: data.AttachedDocument?.url || data.xml?.url || null,
+    pdf_url: data.pdf?.url || data.GraphicRepresentation?.url || null,
     qr_url: data.qr?.url || null,
-    qr_dian_url: data.qr?.qrDian || null,
+    qr_dian_url: data.qr?.qrDian || r.QRCode || null,
+    uuid: data.uuid || null,
     raw: data,
   };
 }

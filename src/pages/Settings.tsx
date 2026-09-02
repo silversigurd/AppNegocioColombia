@@ -35,6 +35,8 @@ export default function Settings() {
         dian_numero_actual: settings.dian_numero_actual || '1',
         dian_ciudad_id: settings.dian_ciudad_id || '836',
         dian_email_consumidor: settings.dian_email_consumidor || '',
+        dian_graphic_representation: settings.dian_graphic_representation ?? false,
+        dian_send_email: settings.dian_send_email ?? false,
     });
 
     const [saving, setSaving] = useState(false);
@@ -342,6 +344,34 @@ export default function Settings() {
                                 />
                                 <p className="text-[10px] text-slate-400 mt-1 ml-1">Se usa cuando el comprador no registra email. MATIAS lo requiere en el XML.</p>
                             </div>
+
+                            <div className="rounded-xl border border-slate-200 divide-y divide-slate-100">
+                                <div className="flex items-center justify-between p-3">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">Generar PDF de la factura</p>
+                                        <p className="text-[10px] text-slate-400">Requiere haber cargado el logo del negocio en el portal de MATIAS. Sin logo, la emisión falla.</p>
+                                    </div>
+                                    <div
+                                        onClick={() => setForm({ ...form, dian_graphic_representation: !form.dian_graphic_representation })}
+                                        className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors shrink-0 ml-4 ${form.dian_graphic_representation ? 'bg-primary-500' : 'bg-slate-300'}`}
+                                    >
+                                        <div className={`bg-white w-4 h-4 rounded-full transition-transform ${form.dian_graphic_representation ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between p-3">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">Enviar factura por email al cliente</p>
+                                        <p className="text-[10px] text-slate-400">Solo si el PDF está activo y el cliente tiene email real.</p>
+                                    </div>
+                                    <div
+                                        onClick={() => form.dian_graphic_representation && setForm({ ...form, dian_send_email: !form.dian_send_email })}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ml-4 ${!form.dian_graphic_representation ? 'bg-slate-200 cursor-not-allowed' : form.dian_send_email ? 'bg-primary-500 cursor-pointer' : 'bg-slate-300 cursor-pointer'}`}
+                                    >
+                                        <div className={`bg-white w-4 h-4 rounded-full transition-transform ${form.dian_send_email && form.dian_graphic_representation ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className={`rounded-xl p-4 text-[11px] leading-relaxed border ${form.dian_resolucion ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
                                 {form.dian_resolucion
                                     ? <><strong>✅ MATIAS API configurada.</strong> Las ventas con "Facturación Electrónica" activa se emiten ante la DIAN automáticamente vía MATIAS API. Las facturas que fallen por conexión quedan en cola para reintento.</>
