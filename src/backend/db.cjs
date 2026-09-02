@@ -3,23 +3,63 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const { app } = require('electron');
+const { secret } = require('./secrets.cjs');
 
 const isProd = process.mainModule.filename.indexOf('app.asar') !== -1;
 const dbPath = isProd
   ? path.join(app.getPath('userData'), 'commerce_data_local.db')
   : path.join(__dirname, '..', '..', 'commerce_data_local.db');
 
-// Embedded replica: escribe/lee local (rápido, funciona offline)
-// y sincroniza en background con Turso cuando hay internet
-const db = createClient({
-  url: `file:${dbPath}`,
-  syncUrl: process.env.TURSO_DATABASE_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-  syncInterval: 60,
-});
+// ── Resolución de credenciales Turso ─────────────────────────────────────────
+// Prioridad: base propia de esta instalación (userData, cifrada)  →  base por
+// defecto horneada en el build / .env.  Si no hay ninguna, la app corre 100%
+// local sin sincronización (no bloquea nada).
+let tursoUrl;
+let tursoToken;
+try {
+  const { readTenant, resetFlagFile } = require('./tenantConfig.cjs');
 
-// Sincronización inicial al arrancar (trae cambios pendientes de la nube)
-db.sync().catch((err) => console.error('Error en sync inicial:', err));
+  // Si se cambió de base Turso, descartar la réplica local vieja antes de abrir
+  // el cliente (metadata del remoto anterior rompería el sync).
+  try {
+    const flag = resetFlagFile();
+    if (fs.existsSync(flag)) {
+      for (const suf of ['', '-shm', '-wal', '-info', '-client_wal_index']) {
+        const f = dbPath + suf;
+        if (fs.existsSync(f)) fs.rmSync(f, { force: true });
+      }
+      fs.rmSync(flag, { force: true });
+      console.log('[DB] Réplica local descartada por cambio de base Turso.');
+    }
+  } catch (err) {
+    console.warn('[DB] No se pudo descartar la réplica local:', err.message);
+  }
+
+  const t = readTenant();
+  if (t) { tursoUrl = t.url; tursoToken = t.token; }
+} catch (err) {
+  console.warn('[DB] No se pudo leer la config Turso de la instalación:', err.message);
+}
+tursoUrl = tursoUrl || secret('TURSO_DATABASE_URL');
+tursoToken = tursoToken || secret('TURSO_AUTH_TOKEN');
+
+const syncEnabled = Boolean(tursoUrl && tursoToken);
+
+// Embedded replica: escribe/lee local (rápido, funciona offline) y sincroniza
+// en background con Turso cuando hay internet y credenciales.
+const clientOpts = { url: `file:${dbPath}`, syncInterval: 60 };
+if (syncEnabled) {
+  clientOpts.syncUrl = tursoUrl;
+  clientOpts.authToken = tursoToken;
+}
+const db = createClient(clientOpts);
+
+if (syncEnabled) {
+  // Sincronización inicial al arrancar (trae cambios pendientes de la nube)
+  db.sync().catch((err) => console.error('Error en sync inicial:', err));
+} else {
+  console.warn('[DB] Sin credenciales de Turso — modo local sin sincronización en la nube.');
+}
 
 // Helpers — la API de libSQL ya es async/await nativo
 async function dbRun(sql, params = []) {
@@ -415,4 +455,4 @@ async function initDb() {
 
 const dbReady = initDb();
 
-module.exports = { db, dbReady, dbPath, dbRun, dbGet, dbAll };
+module.exports = { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl };

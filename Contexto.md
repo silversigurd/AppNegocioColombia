@@ -137,3 +137,28 @@ Sin esto el sistema no es apto para operar legalmente con un negocio formal en C
 
 ### Nota importante
 El sandbox no requiere certificado digital ni habilitación real ante la DIAN — sirve para desarrollar y probar el flujo técnico. La habilitación real (RUT, certificado digital, resolución DIAN) es un trámite aparte que se hace **por cada negocio real** que use el sistema en producción, no antes de tener un cliente concreto.
+
+---
+
+## Manejo de credenciales (2026-09-02)
+
+### Cómo llegan al ejecutable
+- **Desarrollo:** `.env` en la raíz (git-ignored). `src/backend/secrets.cjs` lo carga con dotenv.
+- **Producción:** `npm run gen:secrets` (corre solo dentro de `electron:dist` / `electron:build`) lee el entorno de la máquina de build y escribe `src/backend/secrets.generated.cjs` (git-ignored, se empaqueta en el asar). `secrets.cjs` lo carga y además hidrata `process.env`.
+- Accesor único: `const { secret } = require('./secrets.cjs'); secret('MATIAS_API_KEY')`.
+- Se hornean: `MATIAS_API_KEY` (obligatoria), `MATIAS_API_URL` (opcional), `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (opcionales, base por defecto para pruebas propias).
+
+### Turso: una base por negocio
+
+**Vía principal (onboarding a distancia): instalador por cliente.** El dev está en Argentina y los clientes en Colombia:
+```
+npm run build:cliente -- panaderia-lucia
+```
+`scripts/build-cliente.cjs` pide (o recuerda, en `scripts/clientes.local.json` git-ignored) la URL + token Turso de ese negocio, prueba la conexión, corre `electron:dist` con esas vars en el entorno (se hornean), y deja el `.exe` en `dist-clientes/CommerceOS-Pro_<slug>_v<version>.exe`. El cliente instala + activa la licencia (flujo por Hardware ID, ya remoto) y listo. Tras el build borra `secrets.generated.cjs`.
+
+**Vía secundaria (fallback / cambio de base): Ajustes → "Conexión a la Nube (Turso)".**
+- Se pega URL + token, se prueba la conexión (`SELECT 1`) y se guarda cifrado (AES-256-GCM, clave derivada del machineId) en `userData/tenant.json` — ver `src/backend/tenantConfig.cjs`. Útil para cambiar de base o hacerlo por AnyDesk.
+- `db.cjs` resuelve credenciales así: `tenant.json` (instalación) → `secret()` (build/.env) → si no hay ninguna, corre 100% local sin sync (no bloquea nada).
+- Cambiar la base requiere **reiniciar la app** (el cliente libSQL se crea al cargar el módulo). El botón "Reiniciar app" en Ajustes lo hace (`app.relaunch()`). Al cambiar, `db.cjs` descarta la réplica local vieja en el próximo arranque (marca `.reset-replica` en userData).
+- Handlers IPC: `get-turso-status`, `set-turso-config`, `clear-turso-config`, `restart-app`.
+- **Pendiente / a futuro:** (a) auto-aprovisionar la base por cliente vía Turso Platform API para tener un solo instalador; (b) auto-updater (`electron-updater` + GitHub Releases) — hoy actualizar = mandar el `.exe` nuevo.

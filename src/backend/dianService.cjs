@@ -8,7 +8,9 @@
  * Nunca hardcodear credenciales aquí.
  */
 
-const BASE_URL = process.env.MATIAS_API_URL || 'https://sandbox-api.matias-api.com/api/ubl2.1';
+const { secret } = require('./secrets.cjs');
+
+const BASE_URL = secret('MATIAS_API_URL') || 'https://sandbox-api.matias-api.com/api/ubl2.1';
 
 // ─── Catálogo de impuestos ────────────────────────────────────────────────────
 // Mapa de tipo_impuesto_co (campo en tabla Productos) → {tax_id, percent}.
@@ -66,6 +68,70 @@ async function _loadTaxCatalog() {
   } catch (err) {
     console.warn('[DIAN] No se pudo cargar catálogo de impuestos:', err.message);
   }
+}
+
+// ─── Helpers numéricos y de settings ─────────────────────────────────────────
+
+function round2(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function _parseBool(val, fallback = false) {
+  if (val === undefined || val === null || val === '') return fallback;
+  return val === true || val === 1 || val === 'true' || val === '1';
+}
+
+// ─── Desglose fiscal por línea ───────────────────────────────────────────────
+// Espeja EXACTAMENTE la lógica de POS.tsx → calculateTotals() para Colombia.
+// El sistema guarda precios CON impuestos incluidos (bruto). Acá los "abrimos":
+// base gravable (neto) + montos de cada impuesto, todos a 2 decimales, de modo
+// que la suma de líneas reconcilie con los totales del payload que exige la DIAN.
+function _computeLineTax(item, settings) {
+  const esResponsableIVA = _parseBool(settings.esResponsableIVA, true);
+  const tieneCafeteria = _parseBool(settings.tieneCafeteria, false);
+
+  const tipo = item.tipo_impuesto_co || 'IVA_19';
+  const cantidad = Number(item.cantidad) || 0;
+
+  let ivaPercent = 0;
+  let ipocPercent = 0;
+  let saludablePercent = 0;
+
+  if (tipo === 'IVA_19') ivaPercent = 19;
+  else if (tipo === 'IVA_5') ivaPercent = 5;
+  else if (tipo === 'IPOC_8') ipocPercent = 8;
+
+  if (item.es_producto_saludable) saludablePercent = 20; // 20% bebidas/ultraprocesados
+
+  // Si el local tiene cafetería, el IPOC reemplaza al IVA en esos ítems
+  if (tieneCafeteria && tipo === 'IPOC_8') ivaPercent = 0;
+  // No Responsable de IVA → no discrimina IVA
+  if (!esResponsableIVA) ivaPercent = 0;
+
+  const totalRate = (ivaPercent + ipocPercent + saludablePercent) / 100;
+
+  // Precio unitario neto derivado del bruto, y base de línea = neto unitario * cantidad
+  const grossUnit = round2(Number(item.precio_unitario) || 0);
+  const netUnit = round2(grossUnit / (1 + totalRate));
+  const baseNeta = round2(netUnit * cantidad);
+  const gross = round2(grossUnit * cantidad);
+
+  const ivaAmount = round2(baseNeta * ivaPercent / 100);
+  const ipocAmount = round2(baseNeta * ipocPercent / 100);
+  const saludableAmount = round2(baseNeta * saludablePercent / 100);
+
+  return {
+    item,
+    cantidad,
+    netUnit,
+    gross,
+    baseNeta,
+    ivaPercent, ivaAmount,
+    ipocPercent, ipocAmount,
+    saludablePercent, saludableAmount,
+    // total de línea reconstruido desde las partes (lo que la DIAN recalcula)
+    lineTotal: round2(baseNeta + ivaAmount + ipocAmount + saludableAmount),
+  };
 }
 
 // ─── Construcción del payload ─────────────────────────────────────────────────
@@ -128,78 +194,95 @@ function _buildCustomer(cliente, settings, clienteIdentificacion) {
   };
 }
 
-function _buildLines(items) {
-  return items.map((item) => {
-    const taxInfo = TAX_CATALOG[item.tipo_impuesto_co] ?? TAX_CATALOG['IVA_19'];
-    const baseAmount = parseFloat(item.subtotal);
-
+function _buildLines(lineas) {
+  return lineas.map((l) => {
+    const item = l.item;
     const tax_totals = [];
-    if (taxInfo && taxInfo.percent !== null) {
+
+    if (l.ivaPercent > 0) {
       tax_totals.push({
-        tax_id: taxInfo.tax_id,
-        tax_amount: parseFloat((baseAmount * taxInfo.percent / 100).toFixed(2)),
-        taxable_amount: parseFloat(baseAmount.toFixed(2)),
-        percent: taxInfo.percent,
+        tax_id: '1',
+        tax_amount: l.ivaAmount,
+        taxable_amount: l.baseNeta,
+        percent: l.ivaPercent,
+      });
+    }
+    if (l.ipocPercent > 0) {
+      tax_totals.push({
+        tax_id: TAX_CATALOG.IPOC_8?.tax_id || '18',
+        tax_amount: l.ipocAmount,
+        taxable_amount: l.baseNeta,
+        percent: l.ipocPercent,
+      });
+    }
+    if (l.saludablePercent > 0) {
+      tax_totals.push({
+        tax_id: TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '22',
+        tax_amount: l.saludableAmount,
+        taxable_amount: l.baseNeta,
+        percent: l.saludablePercent,
       });
     }
 
     return {
-      invoiced_quantity: String(item.cantidad),
+      invoiced_quantity: String(l.cantidad),
       quantity_units_id: '1093',                          // UN (unidades)
-      line_extension_amount: baseAmount.toFixed(2),
+      line_extension_amount: l.baseNeta.toFixed(2),       // base gravable (sin impuestos)
       free_of_charge_indicator: false,
       description: item.nombre || `Producto ${item.producto_id}`,
       code: item.codigo || String(item.producto_id),
       type_item_identifications_id: '4',
       reference_price_id: '1',
-      price_amount: parseFloat(item.precio_unitario).toFixed(2),
-      base_quantity: String(item.cantidad),
+      price_amount: l.netUnit.toFixed(2),                 // precio unitario neto
+      base_quantity: String(l.cantidad),
       tax_totals,
     };
   });
 }
 
-function _buildTaxTotals(ventaData) {
-  const { iva_19 = 0, iva_5 = 0, ipoc_8 = 0 } = ventaData;
-  const totals = [];
+// Agrupa los impuestos de todas las líneas por tipo+porcentaje (formato tax_totals de UBL 2.1)
+function _buildTaxTotals(lineas) {
+  const groups = {};
+  const add = (tax_id, percent, taxable, amount) => {
+    const key = `${tax_id}|${percent}`;
+    if (!groups[key]) groups[key] = { tax_id, percent, taxable_amount: 0, tax_amount: 0 };
+    groups[key].taxable_amount = round2(groups[key].taxable_amount + taxable);
+    groups[key].tax_amount = round2(groups[key].tax_amount + amount);
+  };
 
-  if (iva_19 > 0) {
-    totals.push({
-      tax_id: '1',
-      tax_amount: parseFloat(iva_19.toFixed(2)),
-      taxable_amount: parseFloat((iva_19 / 0.19).toFixed(2)),
-      percent: 19,
-    });
-  }
-  if (iva_5 > 0) {
-    totals.push({
-      tax_id: '1',
-      tax_amount: parseFloat(iva_5.toFixed(2)),
-      taxable_amount: parseFloat((iva_5 / 0.05).toFixed(2)),
-      percent: 5,
-    });
-  }
-  if (ipoc_8 > 0) {
-    totals.push({
-      tax_id: TAX_CATALOG.IPOC_8?.tax_id || '18',
-      tax_amount: parseFloat(ipoc_8.toFixed(2)),
-      taxable_amount: parseFloat((ipoc_8 / 0.08).toFixed(2)),
-      percent: 8,
-    });
+  for (const l of lineas) {
+    if (l.ivaPercent > 0) add('1', l.ivaPercent, l.baseNeta, l.ivaAmount);
+    if (l.ipocPercent > 0) add(TAX_CATALOG.IPOC_8?.tax_id || '18', l.ipocPercent, l.baseNeta, l.ipocAmount);
+    if (l.saludablePercent > 0) add(TAX_CATALOG.SALUDABLE_BEBIDA?.tax_id || '22', l.saludablePercent, l.baseNeta, l.saludableAmount);
   }
 
-  return totals;
+  return Object.values(groups);
 }
 
 function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
-  const { total, subtotal, medio_pago, iva_19 = 0, iva_5 = 0, ipoc_8 = 0, imp_saludable = 0, cliente_identificacion } = ventaData;
+  const { medio_pago, cliente_identificacion } = ventaData;
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0];
 
   const paymentInfo = MEDIO_PAGO_MAP[medio_pago] || MEDIO_PAGO_MAP['EFECTIVO'];
-  const impuestosTotal = iva_19 + iva_5 + ipoc_8 + imp_saludable;
+
+  // Desglose fiscal por línea — única fuente de verdad para TODOS los totales
+  const lineas = (items || []).map((item) => _computeLineTax(item, settings));
+
+  const sum = (fn) => round2(lineas.reduce((acc, l) => acc + fn(l), 0));
+  const baseTotal = sum((l) => l.baseNeta);
+  const impuestosTotal = sum((l) => l.ivaAmount + l.ipocAmount + l.saludableAmount);
+  const payableAmount = round2(baseTotal + impuestosTotal);
+
+  // Aviso si el total reconstruido no cuadra con lo cobrado (redondeo esperado ≤ pocos pesos)
+  const totalCobrado = round2(Number(ventaData.total) || 0);
+  if (totalCobrado > 0 && Math.abs(totalCobrado - payableAmount) > 2) {
+    console.warn(
+      `[DIAN] Descuadre factura #${numeroFactura}: cobrado ${totalCobrado} vs reconstruido ${payableAmount}`
+    );
+  }
 
   return {
     resolution_number: String(settings.dian_resolucion || ''),
@@ -214,20 +297,20 @@ function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
     payments: [{
       payment_method_id: paymentInfo.payment_method_id,
       means_payment_id: paymentInfo.means_payment_id,
-      value_paid: parseFloat(total).toFixed(2),
+      value_paid: payableAmount.toFixed(2),
       payment_due_date: dateStr,
     }],
     customer: _buildCustomer(cliente, settings, cliente_identificacion),
-    lines: _buildLines(items),
+    lines: _buildLines(lineas),
     legal_monetary_totals: {
-      line_extension_amount: parseFloat(subtotal).toFixed(2),
-      tax_exclusive_amount: parseFloat(subtotal).toFixed(2),
-      tax_inclusive_amount: parseFloat(total).toFixed(2),
-      payable_amount: parseFloat(total),
+      line_extension_amount: baseTotal.toFixed(2),
+      tax_exclusive_amount: baseTotal.toFixed(2),
+      tax_inclusive_amount: payableAmount.toFixed(2),
+      payable_amount: payableAmount,
       total_allowance: '0.00',
       total_charges: '0.00',
     },
-    tax_totals: _buildTaxTotals(ventaData),
+    tax_totals: _buildTaxTotals(lineas),
   };
 }
 
@@ -236,9 +319,9 @@ function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
 async function emitirFactura(ventaData, cliente, items, settings, numeroFactura) {
   await _loadTaxCatalog();
 
-  const apiKey = process.env.MATIAS_API_KEY;
+  const apiKey = secret('MATIAS_API_KEY');
   if (!apiKey) {
-    throw new Error('MATIAS_API_KEY no está configurada en el entorno.');
+    throw new Error('MATIAS_API_KEY no está configurada (falta en el build o en el .env).');
   }
 
   const payload = buildPayload(ventaData, cliente, items, settings, numeroFactura);

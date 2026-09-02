@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ipc } from '../utils/ipc';
 import { useSettings } from '../context/SettingsContext';
 import SaveIcon from '@mui/icons-material/Save';
@@ -40,6 +40,44 @@ export default function Settings() {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [taxIdError, setTaxIdError] = useState('');
+
+    // --- Conexión Turso (una base por negocio) ---
+    const [tursoStatus, setTursoStatus] = useState<any>(null);
+    const [tursoForm, setTursoForm] = useState({ url: '', token: '' });
+    const [tursoMsg, setTursoMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+    const [tursoBusy, setTursoBusy] = useState(false);
+
+    const refreshTurso = () => ipc.invoke('get-turso-status').then(setTursoStatus).catch(() => { });
+    useEffect(() => { refreshTurso(); }, []);
+
+    const guardarTurso = async () => {
+        setTursoBusy(true); setTursoMsg(null);
+        try {
+            const r = await ipc.invoke('set-turso-config', tursoForm);
+            if (r.success) {
+                setTursoMsg({ type: 'ok', text: 'Conexión verificada y guardada. Reiniciá la app para aplicar los cambios.' });
+                setTursoForm({ url: '', token: '' });
+                await refreshTurso();
+            } else {
+                setTursoMsg({ type: 'err', text: r.error || 'No se pudo guardar.' });
+            }
+        } catch (e: any) {
+            setTursoMsg({ type: 'err', text: e?.message || 'Error inesperado.' });
+        } finally {
+            setTursoBusy(false);
+        }
+    };
+
+    const quitarTurso = async () => {
+        setTursoBusy(true); setTursoMsg(null);
+        try {
+            await ipc.invoke('clear-turso-config');
+            setTursoMsg({ type: 'ok', text: 'Configuración eliminada. Reiniciá la app.' });
+            await refreshTurso();
+        } finally {
+            setTursoBusy(false);
+        }
+    };
 
     const handleTaxIdChange = (val: string) => {
         // Colombia NIT logic: 9 digits base + 1 verification digit (DV) = 10 total
@@ -331,13 +369,94 @@ export default function Settings() {
                     </div>
                 </div>
 
+                {/* Conexión Turso (Nube) */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 border-l-4 border-l-indigo-400">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                        <FolderIcon fontSize="small" className="text-indigo-500" /> Conexión a la Nube (Turso)
+                    </h2>
+
+                    <div className={`rounded-xl p-3 mb-4 text-[11px] font-bold border flex items-center gap-2 ${
+                        tursoStatus?.syncEnabled
+                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                            : 'bg-amber-50 border-amber-100 text-amber-700'
+                    }`}>
+                        <div className={`w-2 h-2 rounded-full ${tursoStatus?.syncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                        {tursoStatus?.syncEnabled
+                            ? <>Sincronización activa {tursoStatus?.urlActual ? `(${tursoStatus.urlActual})` : ''} · origen: {tursoStatus?.fuente === 'instalacion' ? 'este equipo' : 'configuración por defecto'}</>
+                            : <>Sin sincronización — el sistema funciona local. Cargá la base de este negocio abajo.</>}
+                    </div>
+
+                    <p className="text-xs text-slate-500 mb-3">
+                        Cada negocio usa su propia base de datos en la nube. Pegá la URL y el token que
+                        corresponden a este negocio. Se guardan cifrados en este equipo y se verifican al guardar.
+                    </p>
+
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">URL de la base (libsql://…)</label>
+                            <input
+                                type="text"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 transition-all font-mono text-xs text-slate-700"
+                                value={tursoForm.url}
+                                onChange={e => setTursoForm({ ...tursoForm, url: e.target.value })}
+                                placeholder="libsql://negocio-xxxx.aws-us-east-1.turso.io"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Token de acceso</label>
+                            <input
+                                type="password"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 transition-all font-mono text-xs text-slate-700"
+                                value={tursoForm.token}
+                                onChange={e => setTursoForm({ ...tursoForm, token: e.target.value })}
+                                placeholder="eyJhbGciOi…"
+                            />
+                        </div>
+
+                        {tursoMsg && (
+                            <div className={`rounded-xl p-3 text-[11px] font-bold border ${
+                                tursoMsg.type === 'ok'
+                                    ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                                    : 'bg-rose-50 border-rose-100 text-rose-700'
+                            }`}>
+                                {tursoMsg.text}
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={guardarTurso}
+                                disabled={tursoBusy || !tursoForm.url || !tursoForm.token}
+                                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-200 active:scale-95 text-xs"
+                            >
+                                {tursoBusy ? 'Verificando…' : 'Verificar y guardar'}
+                            </button>
+                            {tursoStatus?.tieneConfigInstalacion && (
+                                <button
+                                    onClick={quitarTurso}
+                                    disabled={tursoBusy}
+                                    className="flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold transition-all active:scale-95 text-xs disabled:opacity-50"
+                                >
+                                    Quitar configuración
+                                </button>
+                            )}
+                            <button
+                                onClick={() => ipc.invoke('restart-app')}
+                                className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95 text-xs"
+                            >
+                                Reiniciar app
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Copia de Seguridad */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 border-l-4 border-l-blue-400">
                     <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
                         <FolderIcon fontSize="small" className="text-blue-500" /> Copia de Seguridad
                     </h2>
                     <p className="text-xs text-slate-500 mb-4">
-                        La base de datos se sincroniza automáticamente con Turso (nube). El archivo local de réplica
+                        Cuando la sincronización con Turso está activa, la base se respalda sola en la nube. El archivo local de réplica
                         está en <code className="bg-slate-100 px-1 rounded text-primary-700 font-bold">commerce_data_local.db</code>.
                         Podés abrirlo desde aquí para hacer un respaldo adicional en USB.
                     </p>

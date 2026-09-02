@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Carga credenciales: .env en desarrollo, secrets.generated.cjs (horneado en build) en producción.
+require('./src/backend/secrets.cjs');
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 

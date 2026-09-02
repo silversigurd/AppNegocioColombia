@@ -13,8 +13,10 @@
     "preview": "vite preview",
     "electron:start": "cross-env NODE_ENV=development electron .",
     "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && npm run electron:start\"",
-    "electron:build": "npm run build && npx --yes @electron/rebuild -f -w sqlite3 && npx --yes electron-packager . \"CommerceOS Pro\" --platform=win32 --arch=x64 --out=dist-electron --overwrite --asar",
-    "electron:dist": "npm run build && electron-builder --win"
+    "gen:secrets": "node scripts/gen-secrets.cjs",
+    "build:cliente": "node scripts/build-cliente.cjs",
+    "electron:build": "npm run gen:secrets && npm run build && npx --yes @electron/rebuild -f -w sqlite3 && npx --yes electron-packager . \"CommerceOS Pro\" --platform=win32 --arch=x64 --out=dist-electron --overwrite --asar",
+    "electron:dist": "npm run gen:secrets && npm run build && electron-builder --win"
   },
   "build": {
     "appId": "com.pepe.commerceos.colombia",
@@ -51,6 +53,7 @@
     "files": [
       "dist/**/*",
       "src/backend/**/*",
+      "src/backend/secrets.generated.cjs",
       "main.cjs",
       "package.json"
     ],

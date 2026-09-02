@@ -1,6 +1,9 @@
 const { ipcMain, app, shell, dialog } = require('electron');
-const { db, dbReady, dbPath, dbRun, dbGet, dbAll } = require('./db.cjs');
+const { createClient } = require('@libsql/client');
+const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
 const { emitirFactura } = require('./dianService.cjs');
+const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
+const { secret } = require('./secrets.cjs');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -123,7 +126,7 @@ async function setupIpcHandlers() {
         const [cliente, itemsConDetalle] = await Promise.all([
             cliente_id ? dbGet('SELECT * FROM Clientes WHERE id = ?', [cliente_id]) : Promise.resolve(null),
             dbAll(
-                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co
+                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co, p.es_producto_saludable
                  FROM DetallesVenta dv
                  JOIN Productos p ON dv.producto_id = p.id
                  WHERE dv.venta_id = ?`,
@@ -864,6 +867,69 @@ async function setupIpcHandlers() {
         }
     });
 
+    // --- CONEXIÓN TURSO (una base por negocio) ---
+    ipcMain.handle('get-turso-status', async () => {
+        const tenant = readTenant();
+        const maskUrl = (u) => {
+            if (!u) return null;
+            const host = String(u).replace(/^\w+:\/\//, '');       // saca libsql:// o https://
+            const sub = host.split('.')[0] || host;
+            return sub.length > 8 ? `${sub.slice(0, 8)}….turso.io` : `${sub}.turso.io`;
+        };
+        let fuente = 'ninguna';
+        if (tenant) fuente = 'instalacion';
+        else if (secret('TURSO_DATABASE_URL')) fuente = 'build';
+
+        return {
+            syncEnabled,                       // estado real con el que arrancó la app
+            fuente,                            // 'instalacion' | 'build' | 'ninguna'
+            urlActual: maskUrl(tursoUrl),
+            tieneConfigInstalacion: Boolean(tenant),
+        };
+    });
+
+    ipcMain.handle('set-turso-config', async (event, { url, token }) => {
+        url = (url || '').trim();
+        token = (token || '').trim();
+        if (!url || !token) {
+            return { success: false, error: 'Faltan la URL o el token de Turso.' };
+        }
+        if (!/^libsql:\/\/|^https:\/\//.test(url)) {
+            return { success: false, error: 'La URL debe empezar con libsql:// o https://' };
+        }
+
+        // Probar la conexión antes de guardar
+        try {
+            const test = createClient({ url: url.replace(/^libsql:\/\//, 'https://'), authToken: token });
+            await test.execute('SELECT 1');
+        } catch (err) {
+            return { success: false, error: `No se pudo conectar: ${err.message}` };
+        }
+
+        try {
+            writeTenant({ url, token });
+            markReplicaReset();
+        } catch (err) {
+            return { success: false, error: `No se pudo guardar la configuración: ${err.message}` };
+        }
+        return { success: true, restartRequired: true };
+    });
+
+    ipcMain.handle('clear-turso-config', async () => {
+        try {
+            writeTenant(null);
+            markReplicaReset();
+            return { success: true, restartRequired: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('restart-app', async () => {
+        app.relaunch();
+        app.exit(0);
+    });
+
     // --- CLIENTES (Colombia 2026 - Ley 1581 Habeas Data) ---
     ipcMain.handle('get-clients', async (event, opts) => {
         const search = opts?.search || '';
@@ -963,7 +1029,7 @@ async function setupIpcHandlers() {
             dbGet('SELECT * FROM Ventas WHERE id = ?', [venta_id]),
             dbGet('SELECT * FROM FacturasElectronicas WHERE venta_id = ?', [venta_id]),
             dbAll(
-                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co
+                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co, p.es_producto_saludable
                  FROM DetallesVenta dv
                  JOIN Productos p ON dv.producto_id = p.id
                  WHERE dv.venta_id = ?`,
