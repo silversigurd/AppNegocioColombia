@@ -45,6 +45,27 @@ tursoToken = tursoToken || secret('TURSO_AUTH_TOKEN');
 
 const syncEnabled = Boolean(tursoUrl && tursoToken);
 
+// Archivos auxiliares que libSQL crea junto al .db (WAL, metadata de la réplica…)
+const REPLICA_SUFFIXES = ['-shm', '-wal', '-info', '-client_wal_index', '-journal'];
+
+// Aparta la réplica local corrupta/incompatible para volver a bajarla limpia de
+// Turso. Se renombra (no se borra) el .db principal por si hubiera datos que
+// nunca llegaron a sincronizar; los auxiliares sí se eliminan.
+function _apartarReplicaLocal(motivo) {
+  try {
+    if (fs.existsSync(dbPath)) {
+      const bak = `${dbPath}.corrupta-${Date.now()}`;
+      fs.renameSync(dbPath, bak);
+      console.warn(`[DB] Réplica local apartada (${motivo}). Copia: ${path.basename(bak)}`);
+    }
+  } catch (err) {
+    console.error('[DB] No se pudo apartar el .db principal:', err.message);
+  }
+  for (const suf of REPLICA_SUFFIXES) {
+    try { fs.rmSync(dbPath + suf, { force: true }); } catch { /* noop */ }
+  }
+}
+
 // Embedded replica: escribe/lee local (rápido, funciona offline) y sincroniza
 // en background con Turso cuando hay internet y credenciales.
 const clientOpts = { url: `file:${dbPath}`, syncInterval: 60 };
@@ -52,7 +73,26 @@ if (syncEnabled) {
   clientOpts.syncUrl = tursoUrl;
   clientOpts.authToken = tursoToken;
 }
-const db = createClient(clientOpts);
+
+// libSQL abre el archivo de forma ansiosa dentro de createClient(). Si la réplica
+// local quedó en un estado incompatible (típico al pasar de "sin sync" a "con
+// sync", o tras un cierre sucio: "invalid local state: db file exists but
+// metadata file does not"), la apartamos y reintentamos una vez con réplica
+// nueva — Turso es la fuente de verdad, se vuelve a bajar entera.
+function _abrirCliente() {
+  try {
+    return createClient(clientOpts);
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    const recuperable = syncEnabled && /invalid local state|metadata file does not|not a database|file is (not|encrypted)/i.test(msg);
+    if (!recuperable) throw err;
+    console.error('[DB] Error abriendo la réplica local:', msg);
+    _apartarReplicaLocal('estado local inválido');
+    return createClient(clientOpts); // segundo intento; si falla, que reviente
+  }
+}
+
+const db = _abrirCliente();
 
 if (syncEnabled) {
   // Sincronización inicial al arrancar (trae cambios pendientes de la nube)
