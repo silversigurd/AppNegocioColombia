@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { dbRun, dbGet, dbAll } = require('./db.cjs');
-const { emitirFactura } = require('./dianService.cjs');
+const { emitirFactura, consultarDocumento, qrPngDesdeData } = require('./dianService.cjs');
 
 const MAX_INTENTOS_AUTO = 15;   // tras esto, el job deja de tocar la fila (sigue reintenable a mano)
 const BACKOFF_MAX_MIN = 120;    // tope del backoff exponencial entre intentos
@@ -65,6 +65,46 @@ async function procesarFactura(venta_id, { auto = false } = {}) {
     'UPDATE FacturasElectronicas SET intentos = intentos + 1, ultimo_intento = CURRENT_TIMESTAMP WHERE venta_id = ?',
     [venta_id]
   );
+
+  // ── Caso "en cola de la DIAN": ya se envió (tenemos CUFE) → CONSULTAR estado,
+  //    no re-emitir (re-emitir el mismo número puede duplicar o rechazar). ──────
+  if (fe.cufe) {
+    try {
+      const est = await consultarDocumento({ prefijo: settings.dian_prefijo, numero: fe.numero_factura });
+
+      if (est.found && est.valid) {
+        let qrBase64 = fe.qr_base64;
+        if (!qrBase64 && est.qr_data_b64) qrBase64 = await qrPngDesdeData(est.qr_data_b64);
+        await dbRun(
+          `UPDATE FacturasElectronicas SET
+              estado = 'EMITIDA', cufe = ?, estado_dian = ?, descripcion_dian = 'Autorizada (consulta de estado).',
+              qr_dian_url = COALESCE(?, qr_dian_url), qr_base64 = COALESCE(?, qr_base64), error_mensaje = NULL
+           WHERE venta_id = ?`,
+          [est.cufe || fe.cufe, est.estado_dian, est.qr_dian_url, qrBase64, venta_id]
+        );
+        await dbRun('UPDATE Ventas SET cude_local = ? WHERE id = ?', [est.cufe || fe.cufe, venta_id]);
+        console.log(`[DIAN] Venta #${venta_id}: la DIAN ya validó la factura en cola (consulta de estado${auto ? ', automática' : ''}).`);
+        return { success: true, estado: 'EMITIDA', cufe: est.cufe || fe.cufe };
+      }
+
+      if (est.found && !est.valid) {
+        await dbRun(
+          `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', error_mensaje = ? WHERE venta_id = ?`,
+          ['La DIAN todavía está validando la factura (en cola).', venta_id]
+        );
+        return { success: false, estado: 'PENDIENTE', error: 'La DIAN todavía está validando la factura.' };
+      }
+
+      // No aparece en MATIAS → el envío no quedó registrado; se re-emite abajo.
+      console.warn(`[DIAN] Venta #${venta_id}: tiene CUFE local pero MATIAS no la encuentra. Se re-emite.`);
+    } catch (err) {
+      await dbRun(
+        `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', error_mensaje = ? WHERE venta_id = ?`,
+        [`Consulta de estado falló: ${err.message}`, venta_id]
+      );
+      return { success: false, estado: 'PENDIENTE', error: err.message };
+    }
+  }
 
   try {
     const r = await emitirFactura(venta, cliente, items, settings, fe.numero_factura);

@@ -422,4 +422,62 @@ async function _fetchQrDataUri(url) {
   }
 }
 
-module.exports = { emitirFactura, buildPayload, BASE_URL, IS_SANDBOX };
+// Genera el PNG del QR (data-URI) a partir del texto que exige la DIAN.
+// `qrDataB64` viene de MATIAS (jsonData.qrData) en base64; su contenido es el
+// bloque "NumFac:...\nCUFE:...\n..." que va DENTRO del QR.
+async function qrPngDesdeData(qrDataB64) {
+  try {
+    if (!qrDataB64) return null;
+    const texto = Buffer.from(String(qrDataB64), 'base64').toString('utf8');
+    if (!texto || texto.length < 10) return null;
+    const QRCode = require('qrcode');
+    return await QRCode.toDataURL(texto, { errorCorrectionLevel: 'M', margin: 1, width: 256 });
+  } catch {
+    return null;
+  }
+}
+
+// Consulta el estado real de un documento ya enviado (para facturas que
+// quedaron "en cola de la DIAN"). MATIAS: GET /documents?number=<prefijo><numero>
+// (el filtro `number` matchea document_number exacto).
+async function consultarDocumento({ prefijo, numero }) {
+  const apiKey = secret('MATIAS_API_KEY');
+  if (!apiKey) throw new Error('MATIAS_API_KEY no está configurada.');
+
+  const docNum = `${prefijo || ''}${numero}`;
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}/documents?number=${encodeURIComponent(docNum)}`, {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (err) {
+    throw new Error(`Sin conexión con MATIAS API: ${err.message}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`MATIAS API ${res.status}: ${data.message || JSON.stringify(data)}`);
+
+  const rows = (data.dataRecords && data.dataRecords.data) || [];
+  const row = rows.find((r) => String(r.document_number) === docNum) || rows[0];
+
+  if (!row) return { found: false };
+
+  const jd = row.jsonData || {};
+  const valid = row.is_valid === 1 || row.is_valid === '1';
+  const queued = !valid && (row.send_to_queue === 1 || row.send_to_queue === '1');
+
+  return {
+    found: true,
+    valid,
+    queued,
+    cufe: row.XmlDocumentKey || jd.cufe || null,
+    qr_dian_url: jd.qrDian || jd.qr || null,
+    qr_data_b64: jd.qrData || null,
+    estado_dian: valid ? '00' : (queued ? 'EN_COLA' : null),
+    document_number: row.document_number,
+    raw: row,
+  };
+}
+
+module.exports = { emitirFactura, buildPayload, consultarDocumento, qrPngDesdeData, BASE_URL, IS_SANDBOX };
