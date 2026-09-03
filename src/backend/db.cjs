@@ -19,7 +19,7 @@ let tursoToken;
 try {
   const { readTenant, resetFlagFile } = require('./tenantConfig.cjs');
 
-  // Si se cambió de base Turso, descartar la réplica local vieja antes de abrir
+  // Si se cambió de base TAl urso, descartar la réplica local vieja antes de abrir
   // el cliente (metadata del remoto anterior rompería el sync).
   try {
     const flag = resetFlagFile();

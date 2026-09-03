@@ -1,7 +1,7 @@
 {
   "name": "commerceos-pro-colombia",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Sistema de gestión para comercios CommerceOS Pro",
   "author": "Nicolas Ezequiel Sanc",
   "type": "module",

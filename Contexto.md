@@ -162,6 +162,7 @@ Bug de MATIAS sandbox (RESUELTO 2026-09-03): con `graphic_representation: 1` o `
   - Frontend: nueva página `src/pages/FacturacionDIAN.tsx` (ruta `/facturacion-dian`, solo Admin, refresco cada 30 s, resumen Pendientes/Rechazadas, botón "Reintentar todas" + por fila). Ítem de menú "Facturación DIAN" en `Layout.tsx` con badge rojo (poll 60 s), oculto si `dianCompliance2026` off.
 - Impuesto saludable: se manda como 20% ad-valorem; la ley IBUA/ICUI es tarifa nominal por unidad (el sandbox igual lo acepta).
 - ✅ Logo del emisor cargado en el portal MATIAS (2026-09-03) → PDF + envío por email habilitados. Falta que cada instalación active los toggles en Ajustes.
+- ✅ v1.1.2 (2026-09-03): fix "Resolución DIAN no configurada" al vender. Causas cubiertas: (a) `Settings.tsx` no re-hidrataba el `form` si la config llegaba de la DB después de montar el componente → al Guardar se perdía la resolución ya cargada. Ahora `SettingsContext` expone `loaded` y `Settings` re-hidrata una vez. (b) mensajes de error genéricos → ahora dicen exactamente qué campo falta (resolución vs número). (c) `handleSave` normaliza: `dian_numero_actual` nunca queda vacío/<1, resolución/prefijo con trim. (d) el instalador apunta al **sandbox** MATIAS (`MATIAS_API_URL` no horneada) → nuevo handler `get-dian-env` + banner en Ajustes que avisa "entorno de PRUEBAS" y muestra los valores del sandbox (resolución 18760000001 / prefijo FEV / número 1). Con datos reales de resolución el sandbox rechaza.
 
 ---
 

@@ -67,15 +67,18 @@ const defaultSettings: BusinessSettings = {
 interface SettingsContextType {
     settings: BusinessSettings;
     reloadSettings: () => Promise<void>;
+    loaded: boolean; // true una vez que se leyó la config real de la DB (no los defaults)
 }
 
 const SettingsContext = createContext<SettingsContextType>({
     settings: defaultSettings,
     reloadSettings: async () => { },
+    loaded: false,
 });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
+    const [loaded, setLoaded] = useState(false);
 
     const reloadSettings = async () => {
         try {
@@ -119,6 +122,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             });
         } catch (e) {
             console.error('Failed to load settings from DB', e);
+        } finally {
+            setLoaded(true);
         }
     };
 
@@ -127,7 +132,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <SettingsContext.Provider value={{ settings, reloadSettings }}>
+        <SettingsContext.Provider value={{ settings, reloadSettings, loaded }}>
             {children}
         </SettingsContext.Provider>
     );

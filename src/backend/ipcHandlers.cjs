@@ -1,7 +1,7 @@
 const { ipcMain, app, shell, dialog } = require('electron');
 const { createClient } = require('@libsql/client');
 const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
-const { emitirFactura } = require('./dianService.cjs');
+const { emitirFactura, BASE_URL: DIAN_BASE_URL, IS_SANDBOX: DIAN_IS_SANDBOX } = require('./dianService.cjs');
 const { procesarFactura, procesarPendientes } = require('./facturacionPendientes.cjs');
 const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
 const { secret } = require('./secrets.cjs');
@@ -100,14 +100,18 @@ async function setupIpcHandlers() {
         const settings = {};
         settingsRows.forEach(r => { settings[r.clave] = r.valor; });
 
-        // Verificar que la resolución DIAN esté configurada
-        if (!settings.dian_resolucion || !settings.dian_numero_actual) {
+        // Verificar que los datos de facturación DIAN estén configurados en Ajustes
+        const faltan = [];
+        if (!settings.dian_resolucion || !String(settings.dian_resolucion).trim()) faltan.push('N° de resolución DIAN');
+        if (!settings.dian_numero_actual || !String(settings.dian_numero_actual).trim() || parseInt(settings.dian_numero_actual, 10) < 1) faltan.push('Número actual de factura');
+        if (faltan.length) {
+            const msg = `Facturación DIAN sin configurar en Ajustes → Facturación Electrónica: falta ${faltan.join(' y ')}. La venta se guardó; completá los datos y reintentá la factura.`;
             await dbRun(
                 `INSERT OR IGNORE INTO FacturasElectronicas (venta_id, estado, error_mensaje, intentos)
-                 VALUES (?, 'PENDIENTE', 'Resolución DIAN no configurada en ajustes del negocio.', 1)`,
-                [ventaId]
+                 VALUES (?, 'PENDIENTE', ?, 1)`,
+                [ventaId, msg]
             );
-            return { success: true, ventaId, dian_pendiente: true, dian_error: 'Resolución DIAN no configurada.' };
+            return { success: true, ventaId, dian_pendiente: true, dian_error: msg };
         }
 
         // Reservar número de factura
@@ -1050,6 +1054,16 @@ async function setupIpcHandlers() {
         ]);
         const prefijo = pref ? pref.valor : '';
         return rows.map((r) => ({ ...r, prefijo }));
+    });
+
+    // Entorno MATIAS activo (sandbox vs producción) — para avisar en Ajustes
+    ipcMain.handle('get-dian-env', async () => {
+        const key = secret('MATIAS_API_KEY');
+        return {
+            sandbox: DIAN_IS_SANDBOX,
+            baseUrl: DIAN_BASE_URL,
+            apiKeyPresente: Boolean(key),
+        };
     });
 
     // Solo el conteo — para el badge del menú lateral

@@ -11,6 +11,7 @@
 const { secret } = require('./secrets.cjs');
 
 const BASE_URL = secret('MATIAS_API_URL') || 'https://sandbox-api.matias-api.com/api/ubl2.1';
+const IS_SANDBOX = /sandbox/i.test(BASE_URL);
 
 // ─── Catálogo de impuestos ────────────────────────────────────────────────────
 // Mapa de tipo_impuesto_co (campo en tabla Productos) → {tax_id, percent}.
@@ -415,4 +416,4 @@ async function _fetchQrDataUri(url) {
   }
 }
 
-module.exports = { emitirFactura, buildPayload };
+module.exports = { emitirFactura, buildPayload, BASE_URL, IS_SANDBOX };

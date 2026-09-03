@@ -46,12 +46,15 @@ async function procesarFactura(venta_id, { auto = false } = {}) {
   const settings = {};
   settingsRows.forEach((r) => { settings[r.clave] = r.valor; });
 
-  if (!settings.dian_resolucion || !fe.numero_factura) {
+  if (!settings.dian_resolucion || !String(settings.dian_resolucion).trim() || !fe.numero_factura) {
+    const msg = !fe.numero_factura
+      ? 'Esta factura no tiene número asignado. Revisá "Número actual de factura" en Ajustes → Facturación Electrónica.'
+      : 'Falta el N° de resolución DIAN en Ajustes → Facturación Electrónica.';
     await dbRun(
       `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', error_mensaje = ?, ultimo_intento = CURRENT_TIMESTAMP WHERE venta_id = ?`,
-      ['Resolución DIAN no configurada en Ajustes.', venta_id]
+      [msg, venta_id]
     );
-    return { success: false, estado: 'PENDIENTE', error: 'Resolución DIAN no configurada.' };
+    return { success: false, estado: 'PENDIENTE', error: msg };
   }
 
   const cliente = venta.cliente_id

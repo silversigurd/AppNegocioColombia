@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ipc } from '../utils/ipc';
 import { useSettings } from '../context/SettingsContext';
 import SaveIcon from '@mui/icons-material/Save';
@@ -11,37 +11,56 @@ import { ICA_POR_MUNICIPIO, UVT_2026, SMMLV_2026, AUX_TRANSPORTE_2026 } from '..
 
 
 
-export default function Settings() {
-    const { settings, reloadSettings } = useSettings();
+const buildForm = (settings: ReturnType<typeof useSettings>['settings']) => ({
+    businessName: settings.businessName,
+    businessNit: settings.businessNit, // Colombia
+    businessAddress: settings.businessAddress,
+    tagline: settings.tagline,
+    printerProfile: settings.printerProfile,
+    pais: 'Colombia',
+    hrEmpresaSize: settings.hrEmpresaSize,
+    dianCompliance2026: settings.dianCompliance2026,
+    // Colombia 2026
+    tieneCafeteria: settings.tieneCafeteria ?? false,
+    esResponsableIVA: settings.esResponsableIVA ?? true,
+    municipio: settings.municipio || 'Bogotá D.C.',
+    tasaICA: settings.tasaICA || 11.04,
+    resolucionDIAN: settings.resolucionDIAN || '',
+    // MATIAS API
+    dian_resolucion: settings.dian_resolucion || '',
+    dian_prefijo: settings.dian_prefijo || '',
+    dian_numero_actual: settings.dian_numero_actual || '1',
+    dian_ciudad_id: settings.dian_ciudad_id || '836',
+    dian_email_consumidor: settings.dian_email_consumidor || '',
+    dian_graphic_representation: settings.dian_graphic_representation ?? false,
+    dian_send_email: settings.dian_send_email ?? false,
+});
 
-    const [form, setForm] = useState({
-        businessName: settings.businessName,
-        businessNit: settings.businessNit, // Colombia
-        businessAddress: settings.businessAddress,
-        tagline: settings.tagline,
-        printerProfile: settings.printerProfile,
-        pais: 'Colombia',
-        hrEmpresaSize: settings.hrEmpresaSize,
-        dianCompliance2026: settings.dianCompliance2026,
-        // Colombia 2026
-        tieneCafeteria: settings.tieneCafeteria ?? false,
-        esResponsableIVA: settings.esResponsableIVA ?? true,
-        municipio: settings.municipio || 'Bogotá D.C.',
-        tasaICA: settings.tasaICA || 11.04,
-        resolucionDIAN: settings.resolucionDIAN || '',
-        // MATIAS API
-        dian_resolucion: settings.dian_resolucion || '',
-        dian_prefijo: settings.dian_prefijo || '',
-        dian_numero_actual: settings.dian_numero_actual || '1',
-        dian_ciudad_id: settings.dian_ciudad_id || '836',
-        dian_email_consumidor: settings.dian_email_consumidor || '',
-        dian_graphic_representation: settings.dian_graphic_representation ?? false,
-        dian_send_email: settings.dian_send_email ?? false,
-    });
+export default function Settings() {
+    const { settings, reloadSettings, loaded } = useSettings();
+
+    const [form, setForm] = useState(() => buildForm(settings));
+
+    // Si al montar el componente la config todavía no había terminado de leerse
+    // de la DB (form quedó con defaults), la re-hidratamos cuando llega. Sin
+    // esto, abrir Ajustes en el primer segundo tras arrancar mostraba campos
+    // vacíos y al Guardar se perdía lo que ya estaba configurado (ej: resolución
+    // DIAN) → la venta fallaba con "Resolución DIAN no configurada".
+    const hidratado = useRef(false);
+    useEffect(() => {
+        if (loaded && !hidratado.current) {
+            hidratado.current = true;
+            setForm(buildForm(settings));
+        }
+    }, [loaded, settings]);
 
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [taxIdError, setTaxIdError] = useState('');
+
+    // Entorno MATIAS activo (sandbox vs producción)
+    const [dianEnv, setDianEnv] = useState<{ sandbox: boolean; baseUrl: string; apiKeyPresente: boolean } | null>(null);
+    useEffect(() => { ipc.invoke('get-dian-env').then(setDianEnv).catch(() => { }); }, []);
 
     // --- Conexión Turso (una base por negocio) ---
     const [tursoStatus, setTursoStatus] = useState<any>(null);
@@ -101,9 +120,18 @@ export default function Settings() {
         setSaving(true);
         setSaved(false);
         try {
-            await ipc.invoke('save-settings', {
-                ...form
-            });
+            // Normalizaciones antes de persistir
+            const payload = {
+                ...form,
+                dian_resolucion: String(form.dian_resolucion || '').trim(),
+                dian_prefijo: String(form.dian_prefijo || '').trim().toUpperCase(),
+                // el número nunca debe quedar vacío / < 1 o la venta no factura
+                dian_numero_actual: String(
+                    Math.max(1, parseInt(String(form.dian_numero_actual), 10) || 1)
+                ),
+            };
+            setForm(payload);
+            await ipc.invoke('save-settings', payload);
 
             await reloadSettings();
             setSaved(true);
@@ -286,6 +314,15 @@ export default function Settings() {
                                 </select>
                                 <p className="text-[10px] text-slate-400 mt-1 ml-1">Tasa ICA activa: {form.tasaICA}/1000</p>
                             </div>
+                            {dianEnv && (
+                                <div className={`rounded-xl p-3 text-[11px] leading-relaxed border ${dianEnv.sandbox ? 'bg-blue-50 border-blue-100 text-blue-800' : 'bg-emerald-50 border-emerald-100 text-emerald-800'}`}>
+                                    {dianEnv.sandbox
+                                        ? <><strong>🧪 Entorno de PRUEBAS (sandbox MATIAS).</strong> Las facturas NO tienen validez legal. Usá la resolución precargada del sandbox: <strong>N° 18760000001</strong>, prefijo <strong>FEV</strong>, número <strong>1</strong>. Con tus datos reales de resolución la DIAN de prueba las rechaza.</>
+                                        : <><strong>✅ Entorno de PRODUCCIÓN.</strong> Cargá la resolución real que registraste en MATIAS para tu NIT.</>
+                                    }
+                                    {!dianEnv.apiKeyPresente && <div className="mt-1 font-black text-rose-600">⚠️ No hay API key de MATIAS en esta instalación.</div>}
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">N° Resolución DIAN</label>
@@ -294,7 +331,7 @@ export default function Settings() {
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
                                         value={form.dian_resolucion}
                                         onChange={e => setForm({ ...form, dian_resolucion: e.target.value })}
-                                        placeholder="Ej: 18764074347312"
+                                        placeholder={dianEnv?.sandbox ? '18760000001' : 'Ej: 18764074347312'}
                                     />
                                 </div>
                                 <div>
@@ -372,12 +409,21 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            <div className={`rounded-xl p-4 text-[11px] leading-relaxed border ${form.dian_resolucion ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
-                                {form.dian_resolucion
-                                    ? <><strong>✅ MATIAS API configurada.</strong> Las ventas con "Facturación Electrónica" activa se emiten ante la DIAN automáticamente vía MATIAS API. Las facturas que fallen por conexión quedan en cola para reintento.</>
-                                    : <><strong>⚠️ Resolución DIAN pendiente.</strong> Completá los campos de arriba con los datos que te provee MATIAS API al habilitar tu emisor. Sin resolución, las ventas se guardan pero no se emite la factura electrónica.</>
-                                }
-                            </div>
+                            {(() => {
+                                const guardada = Boolean(settings.dian_resolucion && String(settings.dian_resolucion).trim());
+                                const sinGuardar = String(form.dian_resolucion || '').trim() !== String(settings.dian_resolucion || '').trim()
+                                    || String(form.dian_prefijo || '').trim() !== String(settings.dian_prefijo || '').trim()
+                                    || String(form.dian_numero_actual || '') !== String(settings.dian_numero_actual || '');
+                                return (
+                                    <div className={`rounded-xl p-4 text-[11px] leading-relaxed border ${guardada ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                        {guardada
+                                            ? <><strong>✅ Facturación DIAN configurada y guardada.</strong> Las ventas con "Facturación Electrónica" activa se emiten ante la DIAN vía MATIAS API. Las que fallen por conexión quedan en cola para reintento.</>
+                                            : <><strong>⚠️ Facturación DIAN sin configurar.</strong> Completá N° de resolución, prefijo y número, y tocá <strong>Guardar Cambios</strong> (arriba). Sin esto, las ventas se guardan pero no se emite la factura.</>
+                                        }
+                                        {sinGuardar && <div className="mt-2 font-black text-rose-600">● Tenés cambios sin guardar — tocá "Guardar Cambios" para que apliquen.</div>}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 {/* Cumplimiento Tributario */}
