@@ -138,19 +138,27 @@ export default function Ticket({
     const showQr = settings.dianCompliance2026 && cufe && (dianQrBase64 || dianQrUrl);
 
     return (
-        <div className="print-only text-black bg-white mx-auto w-max p-4">
-            <pre className="font-mono text-[11px] whitespace-pre-wrap m-0 p-0 leading-tight">
-                {ticketText}
-            </pre>
-            {showQr && (
-                <div className="flex flex-col items-center mt-1 font-mono text-[9px] leading-tight">
-                    {dianQrBase64
-                        ? <img src={dianQrBase64} alt="QR DIAN" className="w-32 h-32" />
-                        : <img src={dianQrUrl} alt="QR DIAN" className="w-32 h-32" />}
-                    <span className="mt-1">Verifique esta factura en:</span>
-                    <span className="break-all text-center">catalogo-vpfe.dian.gov.co</span>
-                </div>
-            )}
+        // El CSS de impresión fuerza `.print-only { width: 100vw }`, así que la
+        // caja del ticket ocupa toda la hoja. El wrapper interno `w-max mx-auto`
+        // NO es .print-only, mantiene el ancho real del ticket (el de la línea
+        // más larga, ej. el CUFE) y lo centra en la hoja. Así el <pre> y el QR
+        // comparten la misma caja y el QR queda centrado justo debajo del texto
+        // (antes el QR se centraba respecto de los 100vw → aparecía a la derecha).
+        <div className="print-only text-black bg-white p-4">
+            <div className="w-max mx-auto">
+                <pre className="font-mono text-[11px] whitespace-pre-wrap m-0 p-0 leading-tight">
+                    {ticketText}
+                </pre>
+                {showQr && (
+                    <div className="flex flex-col items-center mt-1 font-mono text-[9px] leading-tight">
+                        {dianQrBase64
+                            ? <img src={dianQrBase64} alt="QR DIAN" className="w-32 h-32" />
+                            : <img src={dianQrUrl} alt="QR DIAN" className="w-32 h-32" />}
+                        <span className="mt-1">Verifique esta factura en:</span>
+                        <span className="break-all text-center">catalogo-vpfe.dian.gov.co</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
