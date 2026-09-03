@@ -1,6 +1,6 @@
 // Carga credenciales: .env en desarrollo, secrets.generated.cjs (horneado en build) en producción.
 require('./src/backend/secrets.cjs');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 
 // ============================================================
@@ -42,6 +42,16 @@ function createWindow() {
     // In production, load the built index.html
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+
+  // Los enlaces externos (ej. PDF de la factura en el sitio de MATIAS) se abren
+  // en el navegador del sistema, no en una ventana Electron pelada.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'deny' };
+  });
 
   // Handle native printing request from renderer to avoid blocking main thread
   ipcMain.handle('print-current-page', async (event, options) => {

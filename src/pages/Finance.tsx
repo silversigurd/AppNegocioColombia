@@ -325,6 +325,45 @@ export default function Finance() {
                                 </div>
                             </div>
 
+                            {(selectedTicketData.cude_local || selectedTicketData.dian_pdf_url) && (
+                                <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-2">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Factura Electrónica DIAN</p>
+                                    {selectedTicketData.dian_numero_factura && (
+                                        <p className="text-xs font-bold text-slate-600">
+                                            N° {selectedTicketData.dian_prefijo || ''}{selectedTicketData.dian_numero_factura}
+                                        </p>
+                                    )}
+                                    {selectedTicketData.cude_local && (
+                                        <p className="text-[10px] font-mono text-slate-500 break-all leading-tight">
+                                            CUFE: {selectedTicketData.cude_local}
+                                        </p>
+                                    )}
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {selectedTicketData.dian_pdf_url && (
+                                            <button
+                                                onClick={() => ipc.invoke('open-external', selectedTicketData.dian_pdf_url)}
+                                                className="text-xs font-bold bg-white border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
+                                            >
+                                                Ver factura PDF (DIAN) →
+                                            </button>
+                                        )}
+                                        {selectedTicketData.dian_qr_dian_url && (
+                                            <button
+                                                onClick={() => ipc.invoke('open-external', selectedTicketData.dian_qr_dian_url)}
+                                                className="text-xs font-bold bg-white border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
+                                            >
+                                                Verificar en la DIAN →
+                                            </button>
+                                        )}
+                                    </div>
+                                    {selectedTicketData.dian_pendiente && (
+                                        <p className="text-[10px] font-bold text-amber-600">
+                                            ⚠️ Factura pendiente de emisión — revisá el módulo "Facturación DIAN".
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             <button
                                 onClick={() => setIsTicketModalOpen(false)}
                                 className="w-full mt-6 py-4 rounded-2xl font-bold text-white bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 transition-all active:scale-95"

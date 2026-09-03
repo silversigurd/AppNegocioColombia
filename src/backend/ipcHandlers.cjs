@@ -336,7 +336,7 @@ async function setupIpcHandlers() {
 
         // Adjuntar datos de la factura electrónica para reimprimir el ticket con CUFE + QR
         const fe = await dbGet(
-            `SELECT numero_factura, cufe, estado, qr_base64, qr_dian_url FROM FacturasElectronicas WHERE venta_id = ?`,
+            `SELECT numero_factura, cufe, estado, qr_base64, qr_dian_url, pdf_url FROM FacturasElectronicas WHERE venta_id = ?`,
             [ventaId]
         );
         if (fe) {
@@ -344,6 +344,8 @@ async function setupIpcHandlers() {
             venta.dian_qr_base64 = fe.qr_base64 || null;
             venta.dian_qr_dian_url = fe.qr_dian_url || null;
             venta.dian_numero_factura = fe.numero_factura || null;
+            venta.dian_pdf_url = fe.pdf_url || null;
+            venta.dian_estado = fe.estado || null;
             venta.dian_pendiente = fe.estado === 'PENDIENTE' || fe.estado === 'ERROR';
         }
         const pref = await dbGet("SELECT valor FROM Configuracion WHERE clave = 'dian_prefijo'");
@@ -1025,6 +1027,20 @@ async function setupIpcHandlers() {
             return { success: true };
         } catch (error) {
             console.error('Error opening file:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Abre una URL http(s) en el navegador del sistema (ej. PDF de la factura DIAN)
+    ipcMain.handle('open-external', async (event, url) => {
+        try {
+            if (!url || !/^https?:\/\//i.test(String(url))) {
+                return { success: false, error: 'URL inválida.' };
+            }
+            await shell.openExternal(String(url));
+            return { success: true };
+        } catch (error) {
+            console.error('Error abriendo URL externa:', error);
             return { success: false, error: error.message };
         }
     });
