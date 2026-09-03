@@ -38,3 +38,6 @@ dist-clientes
 
 # Config local de pruebas DIAN
 scripts/dian-test.local.json
+
+# Config local de Claude Code (permisos por máquina)
+.claude/settings.local.json
