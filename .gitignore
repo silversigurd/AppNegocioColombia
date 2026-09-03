@@ -25,6 +25,7 @@ dist-ssr
 
 # Build and DB
 dist-electron
+dist-electron*
 *.sqlite
 commerce_data_local.db*
 .env
