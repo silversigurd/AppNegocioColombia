@@ -263,7 +263,10 @@ function _buildTaxTotals(lineas) {
   return Object.values(groups);
 }
 
-function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
+// `opts` permite reutilizar todo el armado fiscal para notas crédito:
+//   { tipo: 'NC', prefix, billingReference:{number,date,uuid}, discrepancyResponse:{reference_id,response_id}, notes }
+function buildPayload(ventaData, cliente, items, settings, numeroFactura, opts = {}) {
+  const esNC = opts.tipo === 'NC';
   const { medio_pago, cliente_identificacion } = ventaData;
 
   const now = new Date();
@@ -297,14 +300,14 @@ function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
   const sendEmail = (graphicRep === 1 && _parseBool(settings.dian_send_email, false) && customerEmail
     && !/consumidor\.co$/i.test(customerEmail)) ? 1 : 0;
 
-  return {
+  const payload = {
     resolution_number: String(settings.dian_resolucion || ''),
-    prefix: settings.dian_prefijo || '',
+    prefix: esNC ? (opts.prefix || settings.dian_prefijo_nc || 'NCFE') : (settings.dian_prefijo || ''),
     document_number: String(numeroFactura),
     graphic_representation: graphicRep,
     send_email: sendEmail,
-    operation_type_id: 1,
-    type_document_id: 7,       // Factura electrónica de venta
+    operation_type_id: esNC ? 12 : 1,
+    type_document_id: esNC ? 5 : 7,   // 5 = Nota Crédito, 7 = Factura electrónica de venta
     date: dateStr,
     time: timeStr,
     payments: [{
@@ -325,23 +328,29 @@ function buildPayload(ventaData, cliente, items, settings, numeroFactura) {
     },
     tax_totals: _buildTaxTotals(lineas),
   };
+
+  if (esNC) {
+    payload.notes = opts.notes || 'Anulación de factura electrónica.';
+    if (opts.billingReference) payload.billing_reference = opts.billingReference;
+    if (opts.discrepancyResponse) payload.discrepancy_response = opts.discrepancyResponse;
+  }
+
+  return payload;
 }
 
 // ─── Función principal de emisión ─────────────────────────────────────────────
 
-async function emitirFactura(ventaData, cliente, items, settings, numeroFactura) {
-  await _loadTaxCatalog();
-
+// POST genérico de un documento electrónico (factura o nota crédito) + parseo
+// de la respuesta de MATIAS. Devuelve el `result` normalizado (sin bajar el QR).
+async function _enviarDocumento(pathname, payload) {
   const apiKey = secret('MATIAS_API_KEY');
   if (!apiKey) {
     throw new Error('MATIAS_API_KEY no está configurada (falta en el build o en el .env).');
   }
 
-  const payload = buildPayload(ventaData, cliente, items, settings, numeroFactura);
-
   let res;
   try {
-    res = await fetch(`${BASE_URL}/invoice`, {
+    res = await fetch(`${BASE_URL}${pathname}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -349,21 +358,14 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
         'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30000), // 30 segundos máximo
+      signal: AbortSignal.timeout(30000),
     });
   } catch (err) {
-    // Error de red (sin internet, timeout)
     throw new Error(`Sin conexión con MATIAS API: ${err.message}`);
   }
 
   const data = await res.json().catch(() => ({}));
 
-  // Respuestas observadas en sandbox:
-  //  OK:        { uuid, message, send_to_queue, XmlDocumentKey (CUFE),
-  //              response: { IsValid:"true", StatusCode:"00", StatusDescription, StatusMessage,
-  //                          ErrorMessage:{string:""}, XmlBase64Bytes } }
-  //  Error MATIAS (no DIAN): { success:false, message, line, file }
-  //  Rechazo DIAN:  response.IsValid:"false" + response.ErrorMessage.string con detalle
   if (data && data.success === false) {
     throw new Error(`MATIAS API ${res.status}: ${data.message || JSON.stringify(data)}`);
   }
@@ -375,7 +377,6 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
   const isValid = String(r.IsValid).toLowerCase() === 'true' || r.StatusCode === '00';
   const queued = !isValid && (data.send_to_queue === 1 || data.send_to_queue === true);
 
-  // ErrorMessage.string puede venir como "", string, o array
   let errores = r.ErrorMessage && r.ErrorMessage.string !== undefined ? r.ErrorMessage.string : [];
   if (typeof errores === 'string') errores = errores ? [errores] : [];
   if (!Array.isArray(errores)) errores = errores ? [String(errores)] : [];
@@ -399,14 +400,37 @@ async function emitirFactura(ventaData, cliente, items, settings, numeroFactura)
     raw: data,
   };
 
-  // El QR (imagen PNG que genera MATIAS con el formato exacto que exige la DIAN)
-  // se descarga ahora y se guarda embebido, para que el ticket lo imprima aunque
-  // después no haya internet o el host del QR se caiga.
   if (isValid && result.qr_url) {
     result.qr_base64 = await _fetchQrDataUri(result.qr_url);
   }
-
   return result;
+}
+
+// Emite una NOTA CRÉDITO que referencia una factura ya emitida.
+//   ref = { numeroFacturaCompleto, fechaFactura (YYYY-MM-DD), cufeFactura }
+//   concepto = código DIAN de discrepancia (2 = anulación total)
+async function emitirNotaCredito(ventaData, cliente, items, settings, numeroNC, ref, concepto, motivo) {
+  await _loadTaxCatalog();
+  const payload = buildPayload(ventaData, cliente, items, settings, numeroNC, {
+    tipo: 'NC',
+    prefix: settings.dian_prefijo_nc || 'NCFE',
+    notes: motivo || 'Anulación de factura electrónica.',
+    billingReference: {
+      number: ref.numeroFacturaCompleto,
+      date: ref.fechaFactura,
+      uuid: ref.cufeFactura,
+    },
+    discrepancyResponse: {
+      reference_id: ref.numeroFacturaCompleto,
+      response_id: String(concepto || 2),
+    },
+  });
+  return _enviarDocumento('/notes/credit', payload);
+}
+
+async function emitirFactura(ventaData, cliente, items, settings, numeroFactura) {
+  await _loadTaxCatalog();
+  return _enviarDocumento('/invoice', buildPayload(ventaData, cliente, items, settings, numeroFactura));
 }
 
 async function _fetchQrDataUri(url) {
@@ -480,4 +504,4 @@ async function consultarDocumento({ prefijo, numero }) {
   };
 }
 
-module.exports = { emitirFactura, buildPayload, consultarDocumento, qrPngDesdeData, BASE_URL, IS_SANDBOX };
+module.exports = { emitirFactura, emitirNotaCredito, buildPayload, consultarDocumento, qrPngDesdeData, BASE_URL, IS_SANDBOX };

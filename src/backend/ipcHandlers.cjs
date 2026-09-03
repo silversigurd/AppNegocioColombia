@@ -2,7 +2,7 @@ const { ipcMain, app, shell, dialog } = require('electron');
 const { createClient } = require('@libsql/client');
 const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
 const { emitirFactura, BASE_URL: DIAN_BASE_URL, IS_SANDBOX: DIAN_IS_SANDBOX } = require('./dianService.cjs');
-const { procesarFactura, procesarPendientes } = require('./facturacionPendientes.cjs');
+const { procesarFactura, procesarPendientes, emitirNotaCreditoPorVenta, procesarNotaCredito } = require('./facturacionPendientes.cjs');
 const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
 const { secret } = require('./secrets.cjs');
 const fs = require('fs');
@@ -350,6 +350,23 @@ async function setupIpcHandlers() {
         }
         const pref = await dbGet("SELECT valor FROM Configuracion WHERE clave = 'dian_prefijo'");
         venta.dian_prefijo = pref ? pref.valor : null;
+
+        // Nota crédito (anulación) si existe
+        const nc = await dbGet(
+            `SELECT numero_nc, prefijo_nc, cufe, estado, motivo, qr_base64, qr_dian_url, pdf_url FROM NotasCredito WHERE venta_id = ?`,
+            [ventaId]
+        );
+        if (nc) {
+            venta.nc_estado = nc.estado;
+            venta.nc_numero = nc.numero_nc;
+            venta.nc_prefijo = nc.prefijo_nc;
+            venta.nc_cufe = nc.cufe;
+            venta.nc_motivo = nc.motivo;
+            venta.nc_pdf_url = nc.pdf_url;
+            venta.nc_qr_base64 = nc.qr_base64;
+            venta.nc_qr_dian_url = nc.qr_dian_url;
+        }
+        venta.anulada = venta.anulada || (nc && nc.estado === 'EMITIDA' ? 1 : 0);
         return venta;
     });
 
@@ -1058,7 +1075,7 @@ async function setupIpcHandlers() {
     // --- FACTURAS ELECTRÓNICAS DIAN ---
 
     ipcMain.handle('get-facturas-pendientes', async () => {
-        const [rows, pref] = await Promise.all([
+        const [rows, ncRows, pref] = await Promise.all([
             dbAll(
                 `SELECT fe.*, v.total, v.fecha AS fecha_venta, v.sucursal_id, v.cliente_identificacion
                  FROM FacturasElectronicas fe
@@ -1066,10 +1083,20 @@ async function setupIpcHandlers() {
                  WHERE fe.estado IN ('PENDIENTE', 'ERROR')
                  ORDER BY fe.fecha_emision DESC`
             ),
+            dbAll(
+                `SELECT nc.*, v.total, v.fecha AS fecha_venta, v.sucursal_id, v.cliente_identificacion
+                 FROM NotasCredito nc
+                 JOIN Ventas v ON nc.venta_id = v.id
+                 WHERE nc.estado IN ('PENDIENTE', 'ERROR')
+                 ORDER BY nc.fecha_emision DESC`
+            ),
             dbGet("SELECT valor FROM Configuracion WHERE clave = 'dian_prefijo'"),
         ]);
         const prefijo = pref ? pref.valor : '';
-        return rows.map((r) => ({ ...r, prefijo }));
+        return [
+            ...rows.map((r) => ({ ...r, tipo: 'FACTURA', prefijo })),
+            ...ncRows.map((r) => ({ ...r, tipo: 'NC', numero_factura: r.numero_nc, prefijo: r.prefijo_nc || 'NCFE' })),
+        ];
     });
 
     // Entorno MATIAS activo (sandbox vs producción) — para avisar en Ajustes
@@ -1082,10 +1109,12 @@ async function setupIpcHandlers() {
         };
     });
 
-    // Solo el conteo — para el badge del menú lateral
+    // Solo el conteo — para el badge del menú lateral (facturas + notas crédito)
     ipcMain.handle('get-facturas-pendientes-count', async () => {
         const row = await dbGet(
-            `SELECT COUNT(*) AS n FROM FacturasElectronicas WHERE estado IN ('PENDIENTE', 'ERROR')`
+            `SELECT
+                (SELECT COUNT(*) FROM FacturasElectronicas WHERE estado IN ('PENDIENTE','ERROR')) +
+                (SELECT COUNT(*) FROM NotasCredito WHERE estado IN ('PENDIENTE','ERROR')) AS n`
         );
         return row ? Number(row.n) : 0;
     });
@@ -1093,6 +1122,20 @@ async function setupIpcHandlers() {
     // Reintenta en lote todas las pendientes + con error (ignora el backoff)
     ipcMain.handle('reintentar-todas-facturas', async () => {
         return procesarPendientes({ soloAuto: false });
+    });
+
+    // --- NOTAS CRÉDITO (anulación de venta ya facturada) ---
+    ipcMain.handle('emitir-nota-credito', async (event, { venta_id, motivo, concepto }) => {
+        return emitirNotaCreditoPorVenta(venta_id, { motivo, concepto: concepto || 2 });
+    });
+
+    ipcMain.handle('reintentar-nota-credito', async (event, venta_id) => {
+        const r = await procesarNotaCredito(venta_id);
+        return { success: r.success, estado: r.estado, cufe: r.cufe || null, error: r.success ? null : r.error };
+    });
+
+    ipcMain.handle('get-nota-credito-por-venta', async (event, venta_id) => {
+        return dbGet('SELECT * FROM NotasCredito WHERE venta_id = ?', [venta_id]);
     });
 
     ipcMain.handle('get-factura-por-venta', async (event, venta_id) => {

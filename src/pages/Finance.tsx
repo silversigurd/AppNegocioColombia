@@ -26,6 +26,54 @@ export default function Finance() {
     const [selectedPedidoData, setSelectedPedidoData] = useState<any>(null);
     const [selectedPedidoItems, setSelectedPedidoItems] = useState<any[]>([]);
 
+    // Nota crédito (anulación)
+    const [ncModalOpen, setNcModalOpen] = useState(false);
+    const [ncMotivo, setNcMotivo] = useState('');
+    const [ncBusy, setNcBusy] = useState(false);
+    const [ncMsg, setNcMsg] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
+
+    const recargarVenta = async (ventaId: number) => {
+        const venta = await ipc.invoke('get-venta-por-id', ventaId);
+        if (venta) setSelectedTicketData(venta);
+    };
+
+    const emitirNC = async () => {
+        if (!selectedTicketData) return;
+        setNcBusy(true); setNcMsg(null);
+        try {
+            const r = await ipc.invoke('emitir-nota-credito', { venta_id: selectedTicketData.id, motivo: ncMotivo.trim(), concepto: 2 });
+            if (r.success) {
+                setNcMsg({ tipo: 'ok', texto: `Nota crédito ${r.prefijo_nc}${r.numero_nc} emitida. La venta quedó anulada.` });
+                setNcModalOpen(false); setNcMotivo('');
+                await recargarVenta(selectedTicketData.id);
+                await loadMovements();
+            } else {
+                setNcMsg({ tipo: 'err', texto: r.error || 'No se pudo emitir la nota crédito.' });
+            }
+        } catch (e) {
+            setNcMsg({ tipo: 'err', texto: e instanceof Error ? e.message : 'Error al emitir la nota crédito.' });
+        } finally {
+            setNcBusy(false);
+        }
+    };
+
+    const reintentarNC = async () => {
+        if (!selectedTicketData) return;
+        setNcBusy(true); setNcMsg(null);
+        try {
+            const r = await ipc.invoke('reintentar-nota-credito', selectedTicketData.id);
+            setNcMsg(r.success
+                ? { tipo: 'ok', texto: 'Nota crédito emitida.' }
+                : { tipo: 'err', texto: r.error || 'Sigue pendiente.' });
+            await recargarVenta(selectedTicketData.id);
+            await loadMovements();
+        } catch (e) {
+            setNcMsg({ tipo: 'err', texto: e instanceof Error ? e.message : 'Error.' });
+        } finally {
+            setNcBusy(false);
+        }
+    };
+
     useEffect(() => {
         loadMovements();
     }, []);
@@ -361,6 +409,43 @@ export default function Finance() {
                                             ⚠️ Factura pendiente de emisión — revisá el módulo "Facturación DIAN".
                                         </p>
                                     )}
+
+                                    {/* Nota crédito / anulación */}
+                                    {selectedTicketData.nc_estado === 'EMITIDA' ? (
+                                        <div className="mt-2 pt-2 border-t border-emerald-200">
+                                            <p className="text-[11px] font-black text-rose-600">VENTA ANULADA — Nota Crédito {selectedTicketData.nc_prefijo}{selectedTicketData.nc_numero}</p>
+                                            {selectedTicketData.nc_motivo && <p className="text-[10px] text-slate-500 mt-0.5">Motivo: {selectedTicketData.nc_motivo}</p>}
+                                            {selectedTicketData.nc_cufe && <p className="text-[10px] font-mono text-slate-500 break-all leading-tight">CUFE NC: {selectedTicketData.nc_cufe}</p>}
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {selectedTicketData.nc_pdf_url && (
+                                                    <button onClick={() => ipc.invoke('open-external', selectedTicketData.nc_pdf_url)} className="text-[11px] font-bold bg-white border border-rose-200 text-rose-700 px-2.5 py-1 rounded-lg hover:bg-rose-50">PDF nota crédito →</button>
+                                                )}
+                                                {selectedTicketData.nc_qr_dian_url && (
+                                                    <button onClick={() => ipc.invoke('open-external', selectedTicketData.nc_qr_dian_url)} className="text-[11px] font-bold bg-white border border-rose-200 text-rose-700 px-2.5 py-1 rounded-lg hover:bg-rose-50">Verificar NC en la DIAN →</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : selectedTicketData.nc_estado ? (
+                                        <div className="mt-2 pt-2 border-t border-emerald-200">
+                                            <p className="text-[11px] font-bold text-amber-600">Nota crédito {selectedTicketData.nc_estado === 'ERROR' ? 'rechazada' : 'pendiente'}.</p>
+                                            <button onClick={reintentarNC} disabled={ncBusy} className="mt-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
+                                                {ncBusy ? 'Reintentando…' : 'Reintentar nota crédito'}
+                                            </button>
+                                        </div>
+                                    ) : (selectedTicketData.dian_estado === 'EMITIDA' && (
+                                        <div className="mt-2 pt-2 border-t border-emerald-200">
+                                            <button
+                                                onClick={() => { setNcMsg(null); setNcMotivo(''); setNcModalOpen(true); }}
+                                                className="text-xs font-bold bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg hover:bg-rose-100 transition-colors"
+                                            >
+                                                Anular con Nota Crédito
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {ncMsg && (
+                                        <p className={`text-[11px] font-bold mt-1 ${ncMsg.tipo === 'ok' ? 'text-emerald-700' : 'text-rose-600'}`}>{ncMsg.texto}</p>
+                                    )}
                                 </div>
                             )}
 
@@ -389,6 +474,39 @@ export default function Finance() {
                     items={selectedPedidoItems}
                     onClose={() => setIsPedidoModalOpen(false)}
                 />
+            )}
+
+            {/* Modal: Nota crédito (anulación) */}
+            {ncModalOpen && selectedTicketData && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 p-6 animate-scale-in">
+                        <h2 className="text-lg font-bold text-slate-800">Anular venta #{selectedTicketData.id}</h2>
+                        <p className="text-sm text-slate-500 mt-1 leading-snug">
+                            Se emite una <strong>nota crédito electrónica</strong> ante la DIAN por el total
+                            ({formatCurrency(selectedTicketData.total)}). Se repone el stock y se registra el
+                            egreso en caja. Esta acción no se puede deshacer.
+                        </p>
+                        <label className="block text-[11px] font-black uppercase text-slate-400 mt-4 mb-1">Motivo de la anulación</label>
+                        <textarea
+                            value={ncMotivo}
+                            onChange={e => setNcMotivo(e.target.value)}
+                            rows={3}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 text-sm"
+                            placeholder="Ej: El cliente devolvió la mercadería / error en los datos de la factura"
+                        />
+                        {ncMsg && ncMsg.tipo === 'err' && <p className="text-[11px] font-bold text-rose-600 mt-1">{ncMsg.texto}</p>}
+                        <div className="flex gap-2 mt-5">
+                            <button onClick={() => setNcModalOpen(false)} disabled={ncBusy} className="flex-1 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">Cancelar</button>
+                            <button
+                                onClick={emitirNC}
+                                disabled={ncBusy || ncMotivo.trim().length < 8}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300"
+                            >
+                                {ncBusy ? 'Emitiendo…' : 'Emitir nota crédito'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

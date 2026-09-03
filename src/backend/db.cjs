@@ -459,6 +459,35 @@ async function initDb() {
     // automático para espaciar los reintentos (backoff exponencial).
     await dbRun(`ALTER TABLE FacturasElectronicas ADD COLUMN ultimo_intento DATETIME`).catch(() => { });
 
+    // 13.b NotasCredito — anulación / devolución de una venta ya facturada ante la DIAN
+    await dbRun(`CREATE TABLE IF NOT EXISTS NotasCredito (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venta_id INTEGER NOT NULL UNIQUE,
+      factura_venta_id INTEGER,
+      numero_nc INTEGER,
+      prefijo_nc TEXT,
+      concepto INTEGER DEFAULT 2,
+      motivo TEXT,
+      monto REAL DEFAULT 0,
+      cufe_factura_ref TEXT,
+      cufe TEXT,
+      estado TEXT DEFAULT 'PENDIENTE',
+      estado_dian TEXT,
+      descripcion_dian TEXT,
+      error_mensaje TEXT,
+      xml_url TEXT,
+      pdf_url TEXT,
+      qr_url TEXT,
+      qr_dian_url TEXT,
+      qr_base64 TEXT,
+      intentos INTEGER DEFAULT 0,
+      ultimo_intento DATETIME,
+      fecha_emision DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(venta_id) REFERENCES Ventas(id)
+    )`);
+    // Marca en la venta que fue anulada por una nota crédito (para el POS/Finanzas)
+    await dbRun(`ALTER TABLE Ventas ADD COLUMN anulada INTEGER DEFAULT 0`).catch(() => { });
+
     // Seed Sucursal Principal
     const countSuc = await dbGet('SELECT COUNT(*) as count FROM Sucursales');
     if (countSuc.count === 0) {

@@ -10,6 +10,7 @@ import { useSettings } from '../context/SettingsContext';
 
 interface FacturaPendiente {
     venta_id: number;
+    tipo: 'FACTURA' | 'NC';
     numero_factura: number | null;
     prefijo: string;
     estado: 'PENDIENTE' | 'ERROR';
@@ -61,14 +62,16 @@ export default function FacturacionDIAN() {
         };
     }, [cargar]);
 
-    const reintentarUna = async (venta_id: number) => {
-        setReintentando(venta_id);
+    const reintentarUna = async (f: FacturaPendiente) => {
+        setReintentando(f.venta_id);
         try {
-            const r = await ipc.invoke('reintentar-factura', venta_id);
+            const canal = f.tipo === 'NC' ? 'reintentar-nota-credito' : 'reintentar-factura';
+            const r = await ipc.invoke(canal, f.venta_id);
+            const etiqueta = f.tipo === 'NC' ? 'Nota crédito' : 'Factura';
             if (r.success) {
-                mostrarFlash('ok', `Factura de la venta #${venta_id} emitida. CUFE ${String(r.cufe || '').slice(0, 12)}…`);
+                mostrarFlash('ok', `${etiqueta} de la venta #${f.venta_id} emitida.`);
             } else {
-                mostrarFlash('error', `Venta #${venta_id}: ${r.error || 'No se pudo emitir.'}`);
+                mostrarFlash('error', `Venta #${f.venta_id}: ${r.error || 'No se pudo emitir.'}`);
             }
             await cargar(true);
         } catch (e) {
@@ -211,8 +214,11 @@ export default function FacturacionDIAN() {
                                 </tr>
                             ) : (
                                 facturas.map((f) => (
-                                    <tr key={f.venta_id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-bold text-slate-700">#{f.venta_id}</td>
+                                    <tr key={`${f.tipo}-${f.venta_id}`} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 font-bold text-slate-700">
+                                            #{f.venta_id}
+                                            {f.tipo === 'NC' && <span className="ml-1 text-[9px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded">NOTA CRÉDITO</span>}
+                                        </td>
                                         <td className="px-6 py-4 text-sm text-slate-600">
                                             {f.numero_factura ? `${f.prefijo || ''}${f.numero_factura}` : '—'}
                                         </td>
@@ -241,7 +247,7 @@ export default function FacturacionDIAN() {
                                         <td className="px-6 py-4 text-center text-sm text-slate-500">{f.intentos}</td>
                                         <td className="px-6 py-4 text-right">
                                             <button
-                                                onClick={() => reintentarUna(f.venta_id)}
+                                                onClick={() => reintentarUna(f)}
                                                 disabled={reintentando === f.venta_id || reintentandoTodas}
                                                 className="inline-flex items-center gap-1.5 bg-primary-50 hover:bg-primary-100 text-primary-700 disabled:opacity-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-primary-200"
                                             >

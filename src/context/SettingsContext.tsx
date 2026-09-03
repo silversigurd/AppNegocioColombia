@@ -27,6 +27,8 @@ interface BusinessSettings {
     dian_resolucion: string;       // Número de resolución DIAN (ej: 18764074347312)
     dian_prefijo: string;          // Prefijo de la factura (ej: SETP)
     dian_numero_actual: string;    // Número secuencial actual (ej: 1)
+    dian_prefijo_nc: string;       // Prefijo de las notas crédito (ej: NCFE)
+    dian_numero_nc_actual: string; // Número secuencial actual de notas crédito
     dian_ciudad_id: string;        // ID de ciudad MATIAS (Bogotá = 836)
     dian_email_consumidor: string; // Email para compradores anónimos
     dian_graphic_representation: boolean; // MATIAS genera el PDF (requiere logo cargado en su portal)
@@ -58,6 +60,8 @@ const defaultSettings: BusinessSettings = {
     dian_resolucion: '',
     dian_prefijo: '',
     dian_numero_actual: '1',
+    dian_prefijo_nc: 'NCFE',
+    dian_numero_nc_actual: '1',
     dian_ciudad_id: '836',
     dian_email_consumidor: '',
     dian_graphic_representation: false,
@@ -115,6 +119,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 dian_resolucion: dbSettings.dian_resolucion || '',
                 dian_prefijo: dbSettings.dian_prefijo || '',
                 dian_numero_actual: dbSettings.dian_numero_actual || '1',
+                dian_prefijo_nc: dbSettings.dian_prefijo_nc || 'NCFE',
+                dian_numero_nc_actual: dbSettings.dian_numero_nc_actual || '1',
                 dian_ciudad_id: dbSettings.dian_ciudad_id || '836',
                 dian_email_consumidor: dbSettings.dian_email_consumidor || '',
                 dian_graphic_representation: parseBool(dbSettings.dian_graphic_representation),

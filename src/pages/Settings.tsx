@@ -30,6 +30,8 @@ const buildForm = (settings: ReturnType<typeof useSettings>['settings']) => ({
     dian_resolucion: settings.dian_resolucion || '',
     dian_prefijo: settings.dian_prefijo || '',
     dian_numero_actual: settings.dian_numero_actual || '1',
+    dian_prefijo_nc: settings.dian_prefijo_nc || 'NCFE',
+    dian_numero_nc_actual: settings.dian_numero_nc_actual || '1',
     dian_ciudad_id: settings.dian_ciudad_id || '836',
     dian_email_consumidor: settings.dian_email_consumidor || '',
     dian_graphic_representation: settings.dian_graphic_representation ?? false,
@@ -128,6 +130,10 @@ export default function Settings() {
                 // el número nunca debe quedar vacío / < 1 o la venta no factura
                 dian_numero_actual: String(
                     Math.max(1, parseInt(String(form.dian_numero_actual), 10) || 1)
+                ),
+                dian_prefijo_nc: String(form.dian_prefijo_nc || 'NCFE').trim().toUpperCase(),
+                dian_numero_nc_actual: String(
+                    Math.max(1, parseInt(String(form.dian_numero_nc_actual), 10) || 1)
                 ),
             };
             setForm(payload);
@@ -367,6 +373,31 @@ export default function Settings() {
                                         value={form.dian_ciudad_id}
                                         onChange={e => setForm({ ...form, dian_ciudad_id: e.target.value })}
                                         placeholder="836 = Bogotá D.C."
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Prefijo Nota Crédito</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_prefijo_nc}
+                                        onChange={e => setForm({ ...form, dian_prefijo_nc: e.target.value.toUpperCase() })}
+                                        placeholder={dianEnv?.sandbox ? 'NCFE' : 'Ej: NC'}
+                                        maxLength={4}
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1 ml-1">Para anular ventas (devolución / error).</p>
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1">Número Actual Nota Crédito</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-primary-50 focus:border-primary-400 transition-all font-bold text-slate-700"
+                                        value={form.dian_numero_nc_actual}
+                                        onChange={e => setForm({ ...form, dian_numero_nc_actual: e.target.value })}
+                                        placeholder="1"
                                     />
                                 </div>
                             </div>
