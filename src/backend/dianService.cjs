@@ -30,15 +30,21 @@ let TAX_CATALOG = {
   SALUDABLE_ULTRAPROCESADO: { tax_id: '21', percent: null }, // ICUI — tarifa nominal por unidad
 };
 
-// Mapeo medio_pago del sistema → means_payment_id DIAN (UBL 2.1)
+// Mapeo medio_pago del sistema → means_payment_id DIAN (UBL 2.1).
+// payment_method_id: 1 = Contado (código DIAN "1"), 2 = Crédito.
+// means_payment_id: SOLO códigos ACTIVOS del catálogo DIAN (GET /payment-means).
+// Activos verificados 2026-09: 10 Efectivo, 30 Transf. Crédito, 31 Transf. Débito,
+// 42 Consignación bancaria, 48 Tarjeta Crédito, 49 Tarjeta Débito, ZZZ Acuerdo mutuo.
+// Los códigos 47 (Transf. Débito Bancaria) y 99 (PSE) están INACTIVOS → la DIAN
+// rechaza la factura de una si se mandan (ej: pago por Nequi salía con 99).
 const MEDIO_PAGO_MAP = {
-  EFECTIVO:        { payment_method_id: 1, means_payment_id: 10 }, // Cash
+  EFECTIVO:        { payment_method_id: 1, means_payment_id: 10 }, // Efectivo
   TARJETA:         { payment_method_id: 1, means_payment_id: 48 }, // Tarjeta crédito (genérico)
   TARJETA_CREDITO: { payment_method_id: 1, means_payment_id: 48 }, // Tarjeta crédito
-  TARJETA_DEBITO:  { payment_method_id: 1, means_payment_id: 47 }, // Tarjeta débito
-  TRANSFERENCIA:   { payment_method_id: 1, means_payment_id: 42 }, // Transferencia bancaria
-  PSE:             { payment_method_id: 1, means_payment_id: 99 }, // PSE
-  APPS:            { payment_method_id: 1, means_payment_id: 99 }, // Billeteras digitales (Nequi, DaviPlata)
+  TARJETA_DEBITO:  { payment_method_id: 1, means_payment_id: 49 }, // Tarjeta débito (antes 47, inactivo)
+  TRANSFERENCIA:   { payment_method_id: 1, means_payment_id: 42 }, // Consignación bancaria
+  PSE:             { payment_method_id: 1, means_payment_id: 31 }, // Transferencia débito (antes 99, inactivo)
+  APPS:            { payment_method_id: 1, means_payment_id: 42 }, // Nequi / DaviPlata → Consignación bancaria (antes 99, inactivo)
 };
 
 // ─── Catálogo remoto de impuestos ─────────────────────────────────────────────
