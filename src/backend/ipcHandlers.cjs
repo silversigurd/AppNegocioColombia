@@ -2,6 +2,7 @@ const { ipcMain, app, shell, dialog } = require('electron');
 const { createClient } = require('@libsql/client');
 const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
 const { emitirFactura } = require('./dianService.cjs');
+const { procesarFactura, procesarPendientes } = require('./facturacionPendientes.cjs');
 const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
 const { secret } = require('./secrets.cjs');
 const fs = require('fs');
@@ -1037,13 +1038,31 @@ async function setupIpcHandlers() {
     // --- FACTURAS ELECTRÓNICAS DIAN ---
 
     ipcMain.handle('get-facturas-pendientes', async () => {
-        return dbAll(
-            `SELECT fe.*, v.total, v.fecha, v.sucursal_id
-             FROM FacturasElectronicas fe
-             JOIN Ventas v ON fe.venta_id = v.id
-             WHERE fe.estado IN ('PENDIENTE', 'ERROR')
-             ORDER BY fe.fecha_emision DESC`
+        const [rows, pref] = await Promise.all([
+            dbAll(
+                `SELECT fe.*, v.total, v.fecha AS fecha_venta, v.sucursal_id, v.cliente_identificacion
+                 FROM FacturasElectronicas fe
+                 JOIN Ventas v ON fe.venta_id = v.id
+                 WHERE fe.estado IN ('PENDIENTE', 'ERROR')
+                 ORDER BY fe.fecha_emision DESC`
+            ),
+            dbGet("SELECT valor FROM Configuracion WHERE clave = 'dian_prefijo'"),
+        ]);
+        const prefijo = pref ? pref.valor : '';
+        return rows.map((r) => ({ ...r, prefijo }));
+    });
+
+    // Solo el conteo — para el badge del menú lateral
+    ipcMain.handle('get-facturas-pendientes-count', async () => {
+        const row = await dbGet(
+            `SELECT COUNT(*) AS n FROM FacturasElectronicas WHERE estado IN ('PENDIENTE', 'ERROR')`
         );
+        return row ? Number(row.n) : 0;
+    });
+
+    // Reintenta en lote todas las pendientes + con error (ignora el backoff)
+    ipcMain.handle('reintentar-todas-facturas', async () => {
+        return procesarPendientes({ soloAuto: false });
     });
 
     ipcMain.handle('get-factura-por-venta', async (event, venta_id) => {
@@ -1054,76 +1073,14 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('reintentar-factura', async (event, venta_id) => {
-        // Traer la venta, los ítems y la factura pendiente
-        const [venta, fe, itemsConDetalle, settingsRows] = await Promise.all([
-            dbGet('SELECT * FROM Ventas WHERE id = ?', [venta_id]),
-            dbGet('SELECT * FROM FacturasElectronicas WHERE venta_id = ?', [venta_id]),
-            dbAll(
-                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co, p.es_producto_saludable
-                 FROM DetallesVenta dv
-                 JOIN Productos p ON dv.producto_id = p.id
-                 WHERE dv.venta_id = ?`,
-                [venta_id]
-            ),
-            dbAll("SELECT clave, valor FROM Configuracion"),
-        ]);
-
-        if (!venta) return { success: false, error: 'Venta no encontrada.' };
-        if (!fe) return { success: false, error: 'No hay factura pendiente para esta venta.' };
-        if (fe.estado === 'EMITIDA') return { success: false, error: 'La factura ya fue emitida.' };
-
-        const settings = {};
-        settingsRows.forEach(r => { settings[r.clave] = r.valor; });
-
-        const cliente = venta.cliente_id
-            ? await dbGet('SELECT * FROM Clientes WHERE id = ?', [venta.cliente_id])
-            : null;
-
-        // Incrementar intentos
-        await dbRun(
-            'UPDATE FacturasElectronicas SET intentos = intentos + 1 WHERE venta_id = ?',
-            [venta_id]
-        );
-
-        try {
-            const resultado = await emitirFactura(venta, cliente, itemsConDetalle, settings, fe.numero_factura);
-
-            if (resultado.success) {
-                await dbRun(
-                    `UPDATE FacturasElectronicas SET
-                        estado = 'EMITIDA', cufe = ?, estado_dian = ?, descripcion_dian = ?,
-                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?, qr_base64 = ?, error_mensaje = NULL
-                     WHERE venta_id = ?`,
-                    [
-                        resultado.cufe, resultado.estado_dian, resultado.descripcion_dian,
-                        resultado.xml_url, resultado.pdf_url, resultado.qr_url, resultado.qr_dian_url,
-                        resultado.qr_base64, venta_id
-                    ]
-                );
-                await dbRun('UPDATE Ventas SET cude_local = ? WHERE id = ?', [resultado.cufe, venta_id]);
-
-                return {
-                    success: true,
-                    dian_emitida: true,
-                    cufe: resultado.cufe,
-                    pdf_url: resultado.pdf_url,
-                    qr_dian_url: resultado.qr_dian_url,
-                };
-            } else {
-                const errorMsg = resultado.errores_dian.join(' | ') || resultado.descripcion_dian || 'Rechazada por DIAN';
-                await dbRun(
-                    `UPDATE FacturasElectronicas SET estado = 'ERROR', estado_dian = ?, error_mensaje = ? WHERE venta_id = ?`,
-                    [resultado.estado_dian, errorMsg, venta_id]
-                );
-                return { success: false, error: errorMsg };
-            }
-        } catch (err) {
-            await dbRun(
-                `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', error_mensaje = ? WHERE venta_id = ?`,
-                [err.message, venta_id]
-            );
-            return { success: false, error: err.message };
-        }
+        const r = await procesarFactura(venta_id, { auto: false });
+        return {
+            success: r.success,
+            dian_emitida: r.success,
+            estado: r.estado,
+            cufe: r.cufe || null,
+            error: r.success ? null : r.error,
+        };
     });
 }
 

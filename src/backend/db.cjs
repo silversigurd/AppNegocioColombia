@@ -415,6 +415,9 @@ async function initDb() {
       FOREIGN KEY(venta_id) REFERENCES Ventas(id)
     )`);
     await dbRun(`ALTER TABLE FacturasElectronicas ADD COLUMN qr_base64 TEXT`).catch(() => { });
+    // Marca de tiempo del último intento de emisión — la usa el job de reintento
+    // automático para espaciar los reintentos (backoff exponencial).
+    await dbRun(`ALTER TABLE FacturasElectronicas ADD COLUMN ultimo_intento DATETIME`).catch(() => { });
 
     // Seed Sucursal Principal
     const countSuc = await dbGet('SELECT COUNT(*) as count FROM Sucursales');

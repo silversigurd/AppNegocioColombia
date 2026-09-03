@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -5,9 +6,11 @@ import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import StoreIcon from '@mui/icons-material/Store';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -18,6 +21,7 @@ const navItems = [
     // { path: '/clientes', label: 'Clientes', icon: <PeopleIcon /> },
     { path: '/proveedores', label: 'Proveedores', icon: <LocalShippingIcon />, roles: ['Admin'] },
     { path: '/caja', label: 'Caja y Finanzas', icon: <AccountBalanceWalletIcon />, roles: ['Admin'] },
+    { path: '/facturacion-dian', label: 'Facturación DIAN', icon: <ReceiptLongIcon />, roles: ['Admin'], requiresDian: true },
     { path: '/sucursales', label: 'RRHH', icon: <StoreIcon />, roles: ['Admin'] },
     { path: '/usuarios', label: 'Usuarios', icon: <ManageAccountsIcon />, roles: ['Admin'] },
     { path: '/ajustes', label: 'Ajustes', icon: <SettingsIcon />, roles: ['Admin'] },
@@ -27,6 +31,20 @@ export default function Layout() {
     const location = useLocation();
     const { user, logout } = useAuth();
     const { settings } = useSettings();
+    const [facturasPendientes, setFacturasPendientes] = useState(0);
+
+    useEffect(() => {
+        if (!settings.dianCompliance2026 || user?.rol !== 'Admin') return;
+        let vivo = true;
+        const traer = () => {
+            ipc.invoke('get-facturas-pendientes-count')
+                .then((n: number) => { if (vivo) setFacturasPendientes(Number(n) || 0); })
+                .catch(() => { });
+        };
+        traer();
+        const int = setInterval(traer, 60000);
+        return () => { vivo = false; clearInterval(int); };
+    }, [settings.dianCompliance2026, user?.rol, location.pathname]);
 
 
 
@@ -48,8 +66,11 @@ export default function Layout() {
                     {navItems.map((item) => {
                         // Filter by Role
                         if (item.roles && user && !item.roles.includes(user.rol)) return null;
+                        // Ocultar Facturación DIAN si el negocio no la usa
+                        if (item.requiresDian && !settings.dianCompliance2026) return null;
 
                         const isActive = location.pathname === item.path;
+                        const badge = item.path === '/facturacion-dian' && facturasPendientes > 0 ? facturasPendientes : null;
                         return (
                             <Link
                                 key={item.path}
@@ -62,7 +83,12 @@ export default function Layout() {
                                 <div className={`${isActive ? 'text-primary-600' : 'text-slate-400'} transition-colors`}>
                                     {item.icon}
                                 </div>
-                                {item.label}
+                                <span className="flex-1">{item.label}</span>
+                                {badge !== null && (
+                                    <span className="bg-rose-500 text-white text-[10px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                                        {badge > 99 ? '99+' : badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}

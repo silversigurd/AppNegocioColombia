@@ -11,6 +11,7 @@ import Branches from './pages/Branches';
 import Login from './pages/Login';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import FacturacionDIAN from './pages/FacturacionDIAN';
 import LockIcon from '@mui/icons-material/Lock';
 import { ipc } from './utils/ipc';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -143,6 +144,7 @@ function AppContent() {
           <Route path="clientes" element={<Clients />} />
           <Route path="proveedores" element={<ProtectedRoute allowedRoles={['Admin']}><Providers /></ProtectedRoute>} />
           <Route path="caja" element={<ProtectedRoute allowedRoles={['Admin']}><Finance /></ProtectedRoute>} />
+          <Route path="facturacion-dian" element={<ProtectedRoute allowedRoles={['Admin']}><FacturacionDIAN /></ProtectedRoute>} />
           <Route path="sucursales" element={<ProtectedRoute allowedRoles={['Admin']}><Branches /></ProtectedRoute>} />
           <Route path="usuarios" element={<ProtectedRoute allowedRoles={['Admin']}><Users /></ProtectedRoute>} />
           <Route path="ajustes" element={<ProtectedRoute allowedRoles={['Admin']}><Settings /></ProtectedRoute>} />

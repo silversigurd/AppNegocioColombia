@@ -155,7 +155,11 @@ Bug de MATIAS sandbox: con `graphic_representation: 1` o `send_email: 1` da HTTP
 
 ### Pendientes DIAN
 - ✅ CUFE + QR en el ticket (`Ticket.tsx`, 2026-09-02): título "FACTURA ELECTRÓNICA DE VENTA", `dian_resolucion` real, prefijo+número, CUFE completo, y el QR embebido. `emitirFactura` descarga el PNG del QR de MATIAS y lo guarda como data-URI (`qr_base64`, columna nueva en `FacturasElectronicas`) → imprime offline. `get-venta-por-id` hace join con `FacturasElectronicas` para reimpresiones.
-- UI de facturas pendientes / reintento (handlers existen, sin frontend).
+- ✅ UI de facturas pendientes + reintento automático (2026-09-03):
+  - `src/backend/facturacionPendientes.cjs`: `procesarFactura(venta_id)` (núcleo extraído del viejo handler `reintentar-factura`), `procesarPendientes({soloAuto})` y `iniciarJobReintento()` (job cada 5 min, arranque a los 25 s, backoff exponencial 2^intentos min tope 120, corta a 15 intentos automáticos; ERROR = rechazo DIAN, no se auto-reintenta). Columna nueva `FacturasElectronicas.ultimo_intento`.
+  - `main.cjs` arranca el job tras `setupIpcHandlers()`.
+  - Handlers nuevos/cambiados en `ipcHandlers.cjs`: `reintentar-factura` ahora delega en `procesarFactura`; `get-facturas-pendientes` devuelve `prefijo` + `fecha_venta`; nuevos `get-facturas-pendientes-count` (badge) y `reintentar-todas-facturas` (lote, incluye ERROR, ignora backoff).
+  - Frontend: nueva página `src/pages/FacturacionDIAN.tsx` (ruta `/facturacion-dian`, solo Admin, refresco cada 30 s, resumen Pendientes/Rechazadas, botón "Reintentar todas" + por fila). Ítem de menú "Facturación DIAN" en `Layout.tsx` con badge rojo (poll 60 s), oculto si `dianCompliance2026` off.
 - Impuesto saludable: se manda como 20% ad-valorem; la ley IBUA/ICUI es tarifa nominal por unidad (el sandbox igual lo acepta).
 - Subir logo del emisor al portal MATIAS para habilitar PDF + envío por email.
 

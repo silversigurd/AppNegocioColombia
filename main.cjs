@@ -16,6 +16,7 @@ const colombiaUserDataPath = path.join(app.getPath('appData'), 'CommerceOS Pro C
 app.setPath('userData', colombiaUserDataPath);
 
 const { setupIpcHandlers } = require('./src/backend/ipcHandlers.cjs');
+const { iniciarJobReintento } = require('./src/backend/facturacionPendientes.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -55,6 +56,10 @@ function createWindow() {
 app.whenReady().then(async () => {
   await setupIpcHandlers();
   createWindow();
+
+  // Job de reintento de facturas electrónicas que quedaron pendientes (sin
+  // internet / MATIAS caído). Recorre las PENDIENTE con backoff exponencial.
+  iniciarJobReintento();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
