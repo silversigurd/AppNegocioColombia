@@ -1,7 +1,7 @@
 const { ipcMain, app, shell, dialog } = require('electron');
 const { createClient } = require('@libsql/client');
 const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
-const { emitirFactura, BASE_URL: DIAN_BASE_URL, IS_SANDBOX: DIAN_IS_SANDBOX } = require('./dianService.cjs');
+const { BASE_URL: DIAN_BASE_URL, IS_SANDBOX: DIAN_IS_SANDBOX } = require('./dianService.cjs');
 const { procesarFactura, procesarPendientes, emitirNotaCreditoPorVenta, procesarNotaCredito } = require('./facturacionPendientes.cjs');
 const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
 const { secret } = require('./secrets.cjs');
@@ -29,6 +29,7 @@ async function setupIpcHandlers() {
             LEFT JOIN Categorias c ON p.categoria_id = c.id
             LEFT JOIN Proveedores pr ON p.proveedor_id = pr.id
             LEFT JOIN Inventario i ON p.id = i.producto_id AND i.sucursal_id = ?
+            WHERE p.activo = 1
         `;
         return dbAll(query, [sucursal_id]);
     });
@@ -127,90 +128,23 @@ async function setupIpcHandlers() {
             [ventaId, numeroFactura]
         );
 
-        // Obtener datos del cliente (si aplica) y los ítems con nombres y tipo de impuesto
-        const [cliente, itemsConDetalle] = await Promise.all([
-            cliente_id ? dbGet('SELECT * FROM Clientes WHERE id = ?', [cliente_id]) : Promise.resolve(null),
-            dbAll(
-                `SELECT dv.*, p.nombre, p.codigo, p.tipo_impuesto_co, p.es_producto_saludable
-                 FROM DetallesVenta dv
-                 JOIN Productos p ON dv.producto_id = p.id
-                 WHERE dv.venta_id = ?`,
-                [ventaId]
-            ),
-        ]);
+        // Llamar a MATIAS API en segundo plano: "Confirmar Pago" no debe esperar
+        // a que la DIAN responda (puede tardar varios segundos, o quedar en cola).
+        // procesarFactura ya implementa toda la lógica de emisión/consulta/estado
+        // (es el mismo núcleo que usa el job de reintento automático) y deja el
+        // resultado escrito en FacturasElectronicas; el frontend lo consulta con
+        // get-factura-por-venta apenas después de recibir esta respuesta.
+        procesarFactura(ventaId).catch((err) => {
+            console.error(`[DIAN] Error al emitir factura de la venta #${ventaId} (segundo plano):`, err.message);
+        });
 
-        // Llamar a MATIAS API
-        try {
-            const resultado = await emitirFactura(saleData, cliente, itemsConDetalle, settings, numeroFactura);
-
-            if (resultado.success) {
-                // Factura emitida y aprobada por DIAN
-                await dbRun(
-                    `UPDATE FacturasElectronicas SET
-                        estado = 'EMITIDA', cufe = ?, estado_dian = ?, descripcion_dian = ?,
-                        xml_url = ?, pdf_url = ?, qr_url = ?, qr_dian_url = ?, qr_base64 = ?
-                     WHERE venta_id = ?`,
-                    [
-                        resultado.cufe, resultado.estado_dian, resultado.descripcion_dian,
-                        resultado.xml_url, resultado.pdf_url, resultado.qr_url, resultado.qr_dian_url,
-                        resultado.qr_base64, ventaId
-                    ]
-                );
-                // Guardar CUFE en la venta también
-                await dbRun('UPDATE Ventas SET cude_local = ? WHERE id = ?', [resultado.cufe, ventaId]);
-
-                return {
-                    success: true,
-                    ventaId,
-                    dian_emitida: true,
-                    cufe: resultado.cufe,
-                    pdf_url: resultado.pdf_url,
-                    qr_url: resultado.qr_url,
-                    qr_dian_url: resultado.qr_dian_url,
-                    qr_base64: resultado.qr_base64,
-                    numero_factura: numeroFactura,
-                    prefijo: settings.dian_prefijo || '',
-                };
-            } else if (resultado.queued) {
-                // MATIAS la recibió pero la DIAN aún no respondió — queda en cola para reintento
-                await dbRun(
-                    `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', cufe = ?, error_mensaje = ? WHERE venta_id = ?`,
-                    [resultado.cufe, 'En cola de la DIAN — se reintenta la consulta.', ventaId]
-                );
-                return {
-                    success: true, ventaId, dian_pendiente: true,
-                    dian_error: 'Factura en cola de la DIAN.', numero_factura: numeroFactura,
-                };
-            } else {
-                // MATIAS respondió pero DIAN rechazó
-                const errorMsg = resultado.errores_dian.join(' | ') || resultado.descripcion_dian || 'Rechazada por DIAN';
-                await dbRun(
-                    `UPDATE FacturasElectronicas SET estado = 'ERROR', estado_dian = ?, descripcion_dian = ?, error_mensaje = ? WHERE venta_id = ?`,
-                    [resultado.estado_dian, resultado.descripcion_dian, errorMsg, ventaId]
-                );
-                return {
-                    success: true,
-                    ventaId,
-                    dian_pendiente: true,
-                    dian_error: errorMsg,
-                    numero_factura: numeroFactura,
-                };
-            }
-        } catch (err) {
-            // Error de red o inesperado — la venta está guardada, la factura queda PENDIENTE para reintento
-            console.error('[DIAN] Error al emitir factura:', err.message);
-            await dbRun(
-                `UPDATE FacturasElectronicas SET estado = 'PENDIENTE', error_mensaje = ? WHERE venta_id = ?`,
-                [err.message, ventaId]
-            );
-            return {
-                success: true,
-                ventaId,
-                dian_pendiente: true,
-                dian_error: err.message,
-                numero_factura: numeroFactura,
-            };
-        }
+        return {
+            success: true,
+            ventaId,
+            dian_procesando: true,
+            numero_factura: numeroFactura,
+            prefijo: settings.dian_prefijo || '',
+        };
     });
 
     // --- CATEGORIAS ---
@@ -299,12 +233,27 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('delete-producto', async (event, id) => {
+        // Un producto con ventas o pedidos asociados no se puede borrar en serio:
+        // rompe la FK (DetallesVenta/DetallesPedido -> Productos) y además
+        // corrompería el historial. Si tiene historial, se desactiva
+        // (queda oculto del inventario pero las ventas/facturas viejas
+        // siguen viendo el producto real). Si no tiene historial, se borra.
+        const [enVentas, enPedidos] = await Promise.all([
+            dbGet('SELECT 1 FROM DetallesVenta WHERE producto_id = ? LIMIT 1', [id]),
+            dbGet('SELECT 1 FROM DetallesPedido WHERE producto_id = ? LIMIT 1', [id])
+        ]);
+
+        if (enVentas || enPedidos) {
+            await dbRun('UPDATE Productos SET activo = 0 WHERE id = ?', [id]);
+            return { success: true, softDeleted: true };
+        }
+
         try {
             await dbRun('BEGIN');
             await dbRun('DELETE FROM Inventario WHERE producto_id = ?', [id]);
             await dbRun('DELETE FROM Productos WHERE id = ?', [id]);
             await dbRun('COMMIT');
-            return { success: true };
+            return { success: true, softDeleted: false };
         } catch (err) {
             await dbRun('ROLLBACK').catch(() => { });
             throw err;

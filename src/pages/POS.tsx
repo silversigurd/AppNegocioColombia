@@ -6,6 +6,8 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PrintIcon from '@mui/icons-material/Print';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CloseIcon from '@mui/icons-material/Close';
 import Ticket from '../components/Ticket';
 import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
@@ -40,7 +42,8 @@ export default function POS() {
     // Last Sale Info for Printing
     const [lastSale, setLastSale] = useState<any>(null);
     const [showPrintOptions, setShowPrintOptions] = useState(false);
-    const [dianResult, setDianResult] = useState<{ emitida?: boolean; cufe?: string; pdf_url?: string; qr_dian_url?: string; pendiente?: boolean; error?: string } | null>(null);
+    const [showTicketPreview, setShowTicketPreview] = useState(false);
+    const [dianResult, setDianResult] = useState<{ emitida?: boolean; cufe?: string; pdf_url?: string; qr_dian_url?: string; pendiente?: boolean; procesando?: boolean; error?: string } | null>(null);
 
     // Toast de aviso inline (no roba el foco como window.alert)
     const [stockWarning, setStockWarning] = useState<string | null>(null);
@@ -232,6 +235,36 @@ export default function POS() {
 
     const { subtotal, impuestos, impuestos_internos, total, iva_19, iva_5, ipoc_8, imp_saludable } = calculateTotals();
 
+    // Consulta el estado real de la factura DIAN después de la venta (se emite
+    // en segundo plano) y actualiza el modal de venta + el ticket cuando llega.
+    const pollDianResult = (ventaId: number, attempt = 0) => {
+        const MAX_INTENTOS = 8; // ~16s a 2s cada uno; si tarda más, el job de reintento la toma después
+        setTimeout(async () => {
+            try {
+                const fe = await ipc.invoke('get-factura-por-venta', ventaId);
+                if (fe?.estado === 'EMITIDA') {
+                    setDianResult({ emitida: true, cufe: fe.cufe, pdf_url: fe.pdf_url, qr_dian_url: fe.qr_dian_url });
+                    setLastSale((prev) => (prev && prev.id === ventaId) ? {
+                        ...prev,
+                        cude_local: fe.cufe,
+                        dian_qr_base64: fe.qr_base64,
+                        dian_qr_dian_url: fe.qr_dian_url,
+                        dian_pendiente: false,
+                    } : prev);
+                    return;
+                }
+                if (attempt >= MAX_INTENTOS) {
+                    const msg = fe?.error_mensaje || 'La DIAN está tardando más de lo normal; se reintenta automáticamente.';
+                    setDianResult({ pendiente: true, error: msg });
+                    return;
+                }
+                pollDianResult(ventaId, attempt + 1);
+            } catch (error) {
+                console.error('Error consultando estado de factura DIAN:', error);
+            }
+        }, 2000);
+    };
+
     const confirmPayment = async () => {
         if (cart.length === 0) return;
 
@@ -273,10 +306,15 @@ export default function POS() {
 
             const result = await ipc.invoke('save-venta', saleData);
 
-            // Capturar resultado DIAN para mostrarlo en el modal
+            // Capturar resultado DIAN para mostrarlo en el modal.
+            // La emisión ante la DIAN corre en segundo plano en el backend (llamar
+            // a MATIAS puede tardar varios segundos y no debe trabar "Confirmar
+            // pago"), así que acá solo mostramos "procesando" y consultamos el
+            // resultado real un momento después con get-factura-por-venta.
             if (settings.dianCompliance2026) {
-                if (result.dian_emitida) {
-                    setDianResult({ emitida: true, cufe: result.cufe, pdf_url: result.pdf_url, qr_dian_url: result.qr_dian_url });
+                if (result.dian_procesando) {
+                    setDianResult({ procesando: true });
+                    pollDianResult(result.ventaId);
                 } else if (result.dian_pendiente) {
                     setDianResult({ pendiente: true, error: result.dian_error });
                 }
@@ -301,7 +339,7 @@ export default function POS() {
                 dian_qr_dian_url: result.qr_dian_url || null,
                 dian_numero_factura: result.numero_factura || null,
                 dian_prefijo: result.prefijo || null,
-                dian_pendiente: settings.dianCompliance2026 ? Boolean(result.dian_pendiente) : false,
+                dian_pendiente: settings.dianCompliance2026 ? Boolean(result.dian_pendiente || result.dian_procesando) : false,
                 iva_19,
                 iva_5,
                 ipoc: ipoc_8,
@@ -567,6 +605,8 @@ export default function POS() {
                                             </a>
                                         )}
                                     </>
+                                ) : dianResult.procesando ? (
+                                    <p className="font-black text-amber-700 uppercase animate-pulse">⏳ Emitiendo factura electrónica…</p>
                                 ) : (
                                     <>
                                         <p className="font-black text-amber-700 uppercase mb-1">⚠️ Factura pendiente de emisión</p>
@@ -578,6 +618,12 @@ export default function POS() {
 
                         <div className="flex flex-col gap-3">
                             <button
+                                onClick={() => setShowTicketPreview(true)}
+                                className="w-full bg-white border-2 border-primary-200 hover:bg-primary-50 text-primary-700 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                            >
+                                <VisibilityIcon /> Vista Previa del Ticket
+                            </button>
+                            <button
                                 onClick={() => { window.print(); }}
                                 className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-500/30 transition-all active:scale-95"
                             >
@@ -586,6 +632,7 @@ export default function POS() {
                             <button
                                 onClick={() => {
                                     setShowPrintOptions(false);
+                                    setShowTicketPreview(false);
                                     setLastSale(null);
                                     setDianResult(null);
                                     setCart([]);
@@ -608,6 +655,46 @@ export default function POS() {
                         cliente_identificacion={lastSale.cliente_identificacion}
                         medio_pago={lastSale.medio_pago}
                     />
+                </div>
+            )}
+
+            {/* Vista Previa del Ticket — el diálogo nativo de impresión de Windows
+                no siempre muestra preview ("esta aplicación no admite la vista
+                previa de impresión"), así que se ofrece una propia acá. */}
+            {showTicketPreview && lastSale && (
+                <div className="no-print fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in border border-slate-200 text-slate-800 flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                            <h2 className="text-base font-bold text-slate-800">Vista Previa del Ticket</h2>
+                            <button onClick={() => setShowTicketPreview(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                                <CloseIcon fontSize="small" />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto p-4 bg-slate-100 flex-1">
+                            <div className="bg-white shadow-md mx-auto">
+                                <Ticket
+                                    ventaData={lastSale}
+                                    cliente_identificacion={lastSale.cliente_identificacion}
+                                    medio_pago={lastSale.medio_pago}
+                                    preview
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+                            <button
+                                onClick={() => setShowTicketPreview(false)}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                            >
+                                Cerrar
+                            </button>
+                            <button
+                                onClick={() => { window.print(); }}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-500/30 transition-all flex items-center justify-center gap-2"
+                            >
+                                <PrintIcon fontSize="small" /> Imprimir
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </>

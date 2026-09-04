@@ -284,6 +284,8 @@ async function initDb() {
     await dbRun(`UPDATE Productos SET iva_alicuota = 21 WHERE iva_alicuota IS NULL`);
     await dbRun(`ALTER TABLE Productos ADD COLUMN tipo_impuesto_co TEXT DEFAULT 'IVA_19'`).catch(() => { });
     await dbRun(`ALTER TABLE Productos ADD COLUMN es_producto_saludable INTEGER DEFAULT 0`).catch(() => { });
+    await dbRun(`ALTER TABLE Productos ADD COLUMN activo INTEGER DEFAULT 1`).catch(() => { });
+    await dbRun(`UPDATE Productos SET activo = 1 WHERE activo IS NULL`);
 
     // 7. Inventario
     await dbRun(`CREATE TABLE IF NOT EXISTS Inventario (

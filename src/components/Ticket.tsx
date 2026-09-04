@@ -14,11 +14,15 @@ interface TicketProps {
     medio_pago?: string;
     ventaData?: any;
     onClose?: () => void;
+    // Si es true, se renderiza visible en pantalla (para la vista previa) en
+    // vez de quedar oculto con la clase print-only (que solo se muestra
+    // dentro de @media print).
+    preview?: boolean;
 }
 
 export default function Ticket({
     id, fecha, items, total, subtotal, impuestos,
-    cliente_identificacion, vendedor, medio_pago, ventaData
+    cliente_identificacion, vendedor, medio_pago, ventaData, preview
 }: TicketProps) {
     // Read live settings from DB instead of static config.json
     const { settings } = useSettings();
@@ -144,7 +148,7 @@ export default function Ticket({
         // más larga, ej. el CUFE) y lo centra en la hoja. Así el <pre> y el QR
         // comparten la misma caja y el QR queda centrado justo debajo del texto
         // (antes el QR se centraba respecto de los 100vw → aparecía a la derecha).
-        <div className="print-only text-black bg-white p-4">
+        <div className={`${preview ? '' : 'print-only'} text-black bg-white p-4`}>
             <div className="w-max mx-auto">
                 <pre className="font-mono text-[11px] whitespace-pre-wrap m-0 p-0 leading-tight">
                     {ticketText}

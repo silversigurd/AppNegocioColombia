@@ -74,6 +74,14 @@ export default function Inventory() {
     const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null);
     const [deleteCatConfirmOpen, setDeleteCatConfirmOpen] = useState(false);
 
+    // Toast de aviso inline (no roba el foco como window.alert, que en Electron
+    // deja los inputs sin poder recibir teclado hasta reenfocar la ventana)
+    const [toast, setToast] = useState<string | null>(null);
+    const showToast = (msg: string) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 4000);
+    };
+
     useEffect(() => {
         loadData();
     }, []);
@@ -135,7 +143,7 @@ export default function Inventory() {
             loadData();
         } catch (error) {
             console.error('Error saving product:', error);
-            alert('Error al guardar el producto. Verifique que el código no esté duplicado.');
+            showToast('Error al guardar el producto. Verifique que el código no esté duplicado.');
         }
     };
 
@@ -147,10 +155,14 @@ export default function Inventory() {
     const handleDelete = async () => {
         if (productToDelete !== null) {
             try {
-                await ipc.invoke('delete-producto', productToDelete);
+                const result = await ipc.invoke('delete-producto', productToDelete);
+                if (result?.softDeleted) {
+                    showToast('Este producto tiene ventas o pedidos asociados: se marcó como inactivo (no se puede borrar del todo sin romper el historial) y ya no aparece en el inventario.');
+                }
                 loadData();
             } catch (error) {
                 console.error('Error deleting product:', error);
+                showToast('No se pudo eliminar el producto. Intente de nuevo.');
             } finally {
                 setDeleteConfirmOpen(false);
                 setProductToDelete(null);
@@ -168,7 +180,7 @@ export default function Inventory() {
             setFormData(prev => ({ ...prev, categoria_id: newCat.id }));
         } catch (error) {
             console.error('Error adding category:', error);
-            alert('Error al añadir la categoría.');
+            showToast('Error al añadir la categoría.');
         }
     };
 
@@ -188,7 +200,7 @@ export default function Inventory() {
                 loadData(); // To refresh category names in the list
             } catch (error) {
                 console.error('Error deleting category:', error);
-                alert('Error al eliminar la categoría.');
+                showToast('Error al eliminar la categoría.');
             } finally {
                 setDeleteCatConfirmOpen(false);
                 setCategoryToDelete(null);
@@ -210,15 +222,39 @@ export default function Inventory() {
             'Código': p.codigo,
             'Nombre': p.nombre,
             'Categoría': p.categoria_nombre || 'General',
-            'Stock Disponible': p.stock,
+            'Stock Disponible': p.stock ?? 0,
             'Costo Unitario ($)': p.precio_compra,
             'Precio Venta ($)': p.precio_venta,
-            'Valorización Costo ($)': p.stock * p.precio_compra,
-            'Valorización Venta ($)': p.stock * p.precio_venta
+            'Valorización Costo ($)': (p.stock ?? 0) * p.precio_compra,
+            'Valorización Venta ($)': (p.stock ?? 0) * p.precio_venta
         }));
 
         const wb = utils.book_new();
         const ws = utils.json_to_sheet(exportData);
+
+        // Sin esto, Excel abre la hoja con el ancho de columna default (angosto)
+        // y los encabezados largos ("Valorización Costo ($)") quedan cortados o
+        // amontonados. Se calcula el ancho según el contenido más largo de cada
+        // columna (encabezado incluido), con un tope para no exagerar.
+        const headers = Object.keys(exportData[0] || {});
+        ws['!cols'] = headers.map((header, colIdx) => {
+            const maxContentLen = exportData.reduce((max, row) => {
+                const val = Object.values(row)[colIdx];
+                return Math.max(max, String(val ?? '').length);
+            }, header.length);
+            return { wch: Math.min(Math.max(maxContentLen + 2, 10), 40) };
+        });
+
+        // Columnas numéricas (stock, costos, precios, valorización) con separador
+        // de miles en vez de números pelados.
+        const numericCols = [3, 4, 5, 6, 7]; // D..H (0-indexed)
+        numericCols.forEach((c) => {
+            for (let r = 1; r <= exportData.length; r++) {
+                const cell = ws[utils.encode_cell({ r, c })];
+                if (cell) cell.z = '#,##0';
+            }
+        });
+
         utils.book_append_sheet(wb, ws, 'Inventario');
         writeFile(wb, `Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
@@ -261,6 +297,13 @@ export default function Inventory() {
 
     return (
         <div className="flex flex-col h-full animate-fade-in text-slate-800">
+            {/* Toast de aviso inline */}
+            {toast && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] bg-amber-500 text-white px-5 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-3 animate-scale-in max-w-md text-center">
+                    <span className="text-lg">&#9888;</span>
+                    {toast}
+                </div>
+            )}
             {/* Header section */}
             <div className="flex justify-between items-end mb-6">
                 <div>

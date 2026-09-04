@@ -1,5 +1,47 @@
 # Contexto para Claude Code — CommerceOS Pro (Turso + DIAN)
 
+## ⏸️ ESTADO ACTUAL (2026-09-04) — En pausa, esperando primer cliente real
+
+**Dónde estamos:** el desarrollo técnico del sistema (POS, Turso, facturación DIAN) está funcionalmente completo y probado contra el sandbox de MATIAS. Versión actual: **v1.1.8** — sobre la base de v1.1.7 (commit `35782af`) se sumó una ronda de fixes de uso real en Inventario y POS (ver detalle más abajo: borrado de productos, velocidad de "Confirmar Pago", vista previa de ticket, export a Excel).
+
+**Por qué estamos parados:** para seguir avanzando en serio (probar con datos reales, habilitación real ante la DIAN, ajustar impuesto saludable IBUA/ICUI con casos reales, numeración sin huecos, onboarding real vía `build:cliente`) hace falta un **negocio real habilitado** que provea:
+- NIT y datos fiscales reales (para pasar de sandbox a producción en MATIAS).
+- Catálogo de productos e impuestos reales (para validar IBUA/ICUI, que hoy es una aproximación).
+- Uso real del POS para encontrar bugs que el sandbox no expone.
+
+Sin ese cliente, seguir "adelantando" trabajo es especulativo — el roadmap de mejoras DIAN (#3 y #5, ver abajo) quedó **deliberadamente pausado** a la espera de decidir con el usuario cuál sigue, en vez de seguir construyendo a ciegas.
+
+**Lo que SÍ quedó listo mientras se espera:**
+- Motor de facturación electrónica (emisión, consulta de estado, notas crédito, reintentos automáticos, PDF/QR) — verificado end-to-end contra sandbox.
+- Manejo de credenciales por-negocio (Turso + MATIAS_API_KEY horneados por build) y script `build:cliente` para generar un instalador por cliente — **nunca usado todavía** (no existe `scripts/clientes.local.json` ni nada en `dist-clientes/`), es la vía pensada para cuando aparezca el primer cliente.
+- UI de facturas/notas crédito pendientes con reintento manual y automático.
+
+**Qué falta decidir/hacer cuando aparezca el cliente:**
+1. Elegir con el usuario si seguir #3 (IBUA/ICUI real) o #5 (numeración sin huecos) del roadmap — o directamente priorizar lo que el cliente real necesite.
+2. Migrar la cuenta MATIAS de sandbox a producción para ese negocio (requiere certificado digital + resolución DIAN real del cliente).
+3. Correr `npm run build:cliente -- <slug>` por primera vez de punta a punta.
+4. Deuda técnica pendiente sin urgencia: sacar `sqlite3` de `dependencies`/scripts de build (ya no se usa, quedó de antes de Turso).
+
+**Instrucción para todas las sesiones:** cada vez que se haga un cambio real en el proyecto durante esta conversación, actualizar esta sección (y el resto del documento si corresponde) para que `Contexto.md` refleje siempre el estado vigente.
+
+**2026-09-04 — fix: no se podían borrar productos con historial en Inventario.** Causa: `delete-producto` (`ipcHandlers.cjs`) hacía `DELETE FROM Productos` sin chequear si el producto tenía ventas (`DetallesVenta`) o pedidos (`DetallesPedido`) asociados; esas tablas tienen FK a `Productos` sin `ON DELETE CASCADE`/`SET NULL`, así que la query fallaba con `SQLITE_CONSTRAINT: FOREIGN KEY constraint failed` — y el error solo se logueaba en consola, nunca se mostraba al usuario, por eso "no dejaba" sin explicación. Confirmado el bug real reproduciéndolo contra una copia offline del `commerce_data_local.db` real (no se tocó la base real ni Turso).
+- Fix: columna nueva `Productos.activo` (`db.cjs`, migración idempotente, default 1). `delete-producto` ahora chequea si el producto tiene ventas/pedidos; si tiene, hace soft-delete (`activo=0`, se oculta pero preserva el historial/facturación vieja intacta); si no tiene, borra en serio como antes. `get-productos` ahora filtra `WHERE activo = 1`.
+- Edición de productos (`update-producto`) se revisó de punta a punta: no tenía el bug, el flujo ya andaba bien (queda confirmado, no se tocó código de edición).
+- **Regresión propia detectada y corregida en la misma sesión:** el aviso de soft-delete se implementó primero con `window.alert()`, y eso rompió el modal de "Nuevo Producto" (los inputs dejaban de aceptar teclado) — bug conocido de Electron: al cerrarse un `alert()` nativo, la ventana no siempre recupera el foco de teclado del renderer. `POS.tsx` ya tenía documentado este mismo problema con un toast inline ("no roba el foco como window.alert"). Se replicó ese patrón en `Inventory.tsx`: estado `toast`/`showToast()` + banner fijo arriba (`z-[300]`, autodesaparece a los 4s), y se migraron **todos** los `alert()` de la página (guardar producto, borrar producto, agregar/borrar categoría) al mismo toast — no solo los que yo había agregado.
+- Verificado: `tsc --noEmit` y `eslint` limpios. Probado en runtime real vía `npm run electron:dev` (HMR aplicó el fix sin errores). Falta: que el usuario confirme en la ventana abierta que el modal de "Nuevo Producto" ya acepta texto con normalidad después de borrar un producto.
+
+**2026-09-04 — fix: "Confirmar Pago" lento + no hay vista previa del ticket.** Dos pedidos del usuario en la misma sesión.
+1. **"Confirmar Pago" tardaba mucho.** Causa confirmada: `save-venta` (`ipcHandlers.cjs`) hacía `await emitirFactura(...)` (llamada de red a MATIAS/DIAN) **dentro** del mismo handler IPC que "Confirmar Pago" espera — el botón quedaba bloqueado hasta que la DIAN respondía. Fix: la venta se guarda igual que antes (rápido, todo local), se reserva el número de factura y se inserta la fila `FacturasElectronicas` en PENDIENTE (también local, rápido), pero la llamada a MATIAS ahora se dispara con `procesarFactura(ventaId)` **sin awaitear** (fire-and-forget) — se reutilizó tal cual el núcleo que ya usa el job de reintento automático (`facturacionPendientes.cjs`), así que se sacaron ~80 líneas duplicadas de `save-venta`. El handler devuelve al instante con `dian_procesando: true`. El frontend (`POS.tsx`) muestra "⏳ Emitiendo factura electrónica…" y hace polling de `get-factura-por-venta` cada 2s (hasta 8 intentos) para completar el CUFE/QR en el modal y en el ticket apenas la DIAN responde; si tarda más, el job de reintento ya existente la termina tomando igual. El ticket ya sabía mostrar "factura EN TRÁMITE" para este caso (no hizo falta tocar `Ticket.tsx` para esto).
+2. **Vista previa del ticket.** El diálogo nativo de impresión de Windows decía "esta aplicación no admite la vista previa de impresión" — es una limitación de cómo Electron integra `window.print()` con el diálogo nativo en Windows (no hay flag simple para habilitar el preview de ese diálogo). Se implementó vista previa propia: `Ticket.tsx` ahora acepta un prop `preview` (si es true, no aplica la clase `print-only` que lo mantiene siempre oculto salvo al imprimir). En `POS.tsx`, el modal "¡Venta Exitosa!" ahora tiene un botón "Vista Previa del Ticket" que abre un modal propio (scrolleable, `no-print`) con el ticket renderizado tal cual va a salir por impresora, más un botón "Imprimir" adentro.
+- Verificado: `tsc --noEmit` y `eslint` limpios (sin regresiones nuevas — quedan 2 warnings/errores preexistentes de antes de esta sesión, no tocados). Falta: probar en la app real que 1) el pago se confirma rápido y el CUFE aparece solo unos segundos después, y 2) la vista previa muestra el ticket bien.
+- **Nota operativa de esta sesión:** al reiniciar `npm run electron:dev` varias veces, quedaron procesos `electron.exe`/`vite` colgados de corridas anteriores (Windows no siempre mata el árbol completo al cerrar la ventana) ocupando el puerto 5173 y abriendo una segunda ventana con backend desactualizado. Se identificaron por `CommandLine` (`Get-CimInstance Win32_Process`) antes de matarlos, para no tocar nada que no fuera de esta sesión de dev. Si vuelve a pasar: cerrar la ventana de la app no alcanza, hay que matar el proceso a mano o reiniciar antes de seguir probando.
+
+**2026-09-04 — fix: Excel de Inventario mal estructurado.** `handleExportExcel` (`Inventory.tsx`) generaba la hoja con `utils.json_to_sheet()` sin definir `!cols` (ancho de columna) ni formato numérico — Excel abre eso con el ancho default angosto (~8 caracteres), así que encabezados largos como "Valorización Costo ($)" quedaban cortados/amontonados y los números salían pelados sin separador de miles. Reproducido generando el .xlsx real con una copia offline de la base (misma técnica que las otras veces, sin tocar la base real) para confirmar antes de tocar código.
+- Fix: se calcula `ws['!cols']` por columna según el contenido más largo (encabezado incluido, tope 40 caracteres) para que cada columna tenga el ancho que necesita; y se aplica formato `#,##0` (separador de miles) a las columnas numéricas (Stock, Costo Unitario, Precio Venta, Valorización Costo, Valorización Venta). De paso, `p.stock` ahora usa `?? 0` en vez de multiplicarse crudo (evita `NaN`/vacío si un producto no tiene fila de `Inventario` para la sucursal).
+- Verificado: se regeneró el .xlsx con la misma lógica ya corregida contra datos reales (offline) y se confirmó `!cols` con anchos por columna + celdas con `z: '#,##0'`. `tsc`/`eslint` limpios.
+
+---
+
 ## Qué es este proyecto
 CommerceOS Pro (repo: `AppNegocioColombia`) es un sistema de gestión comercial para negocios en Colombia: POS, Inventario, Clientes, Proveedores/Compras, Finanzas y RRHH (con cálculo de liquidaciones según Ley 2466 de 2025 / CST Colombiano). Está construido en **Electron + React/TypeScript + Vite**, con backend en `src/backend/` usando archivos `.cjs`.
 
