@@ -16,6 +16,7 @@ export default function Users() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const [editingUser, setEditingUser] = useState<number | null>(null);
+    const [editingIsPrincipal, setEditingIsPrincipal] = useState(false);
     const [formData, setFormData] = useState<{
         username: string;
         password: string;
@@ -52,6 +53,7 @@ export default function Users() {
         setFormError('');
         if (user) {
             setEditingUser(user.id);
+            setEditingIsPrincipal(user.username === 'Principal');
             setFormData({
                 username: user.username,
                 password: '',
@@ -61,6 +63,7 @@ export default function Users() {
             });
         } else {
             setEditingUser(null);
+            setEditingIsPrincipal(false);
             setFormData({
                 username: '',
                 password: '',
@@ -93,11 +96,15 @@ export default function Users() {
 
                 // Si el usuario editado es el actual, refrescar la sesión inmediatamente
                 if (user && user.id === editingUser) {
+                    const empleadoNombre = formData.empleado_id === ''
+                        ? null
+                        : (empleados.find(e => e.id === formData.empleado_id)?.nombre ?? null);
                     login({
                         ...user,
                         username: formData.username,
                         rol: formData.rol,
                         empleado_id: formData.empleado_id === '' ? null : formData.empleado_id,
+                        empleado_nombre: empleadoNombre,
                         nombre_propietario: formData.nombre_propietario
                     });
                 }
@@ -165,7 +172,7 @@ export default function Users() {
                         <tbody className="divide-y divide-slate-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-slate-400">Cargando...</td>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">Cargando...</td>
                                 </tr>
                             ) : users.map((u) => (
                                 <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -232,7 +239,7 @@ export default function Users() {
                                 <input
                                     required
                                     type="text"
-                                    disabled={formData.username === 'Principal'} // Protected from rename
+                                    disabled={editingIsPrincipal} // Protected from rename
                                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-400 transition-all font-bold text-slate-700 disabled:opacity-50"
                                     value={formData.username}
                                     autoComplete="off"
@@ -259,7 +266,7 @@ export default function Users() {
                                     <select
                                         className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-400 transition-all font-bold text-slate-700 appearance-none disabled:opacity-50"
                                         value={formData.rol}
-                                        disabled={formData.username === 'Principal'} // Cannot demote root admin
+                                        disabled={editingIsPrincipal} // Cannot demote root admin
                                         onChange={(e) => setFormData({ ...formData, rol: e.target.value as 'Admin' | 'Empleado' })}
                                     >
                                         <option value="Admin">Administrador (Total)</option>
@@ -268,7 +275,7 @@ export default function Users() {
                                 </div>
                             </div>
 
-                            {formData.username === 'Principal' ? (
+                            {editingIsPrincipal ? (
                                 <div>
                                     <label className="block text-[11px] font-black uppercase text-slate-400 mb-1 ml-1 text-primary-600">Nombre propietario (Para el ticket)</label>
                                     <input
