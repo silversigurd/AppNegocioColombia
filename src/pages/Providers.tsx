@@ -188,8 +188,10 @@ export default function Providers() {
                     (prov.plazo_pago && prov.plazo_pago > 0) ||
                     (prov.minimo_compra && prov.minimo_compra > 0) ||
                     (prov.limite_credito && prov.limite_credito > 0) ||
-                    (prov.moneda_compra && prov.moneda_compra !== 'ARS') ||
+                    (prov.moneda_compra && prov.moneda_compra !== 'COP') ||
+                    (prov.email_compras && prov.email_compras.trim() !== '') ||
                     (prov.email_pagos && prov.email_pagos.trim() !== '') ||
+                    (prov.email_facturacion && prov.email_facturacion.trim() !== '') ||
                     (prov.saldo_actual && prov.saldo_actual !== 0) ||
                     (prov.retencion_ganancias && prov.retencion_ganancias > 0) ||
                     (prov.retencion_iibb && prov.retencion_iibb > 0) ||
@@ -497,7 +499,7 @@ export default function Providers() {
                                             <AccountBalanceWalletIcon style={{ fontSize: 12 }} /> Saldo Cta. Cte.
                                         </p>
                                         <p className={`font-black ${p.saldo_actual > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                            ${p.saldo_actual.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                            ${p.saldo_actual.toLocaleString('es-CO', { minimumFractionDigits: 2 })}
                                         </p>
                                     </div>
                                 </div>
@@ -701,6 +703,11 @@ export default function Providers() {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-4">
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1">Email Compras/Pedidos</label>
+                                                        <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm"
+                                                            value={formData.email_compras} onChange={e => setFormData({ ...formData, email_compras: e.target.value })} />
+                                                    </div>
                                                     <div className="flex-1">
                                                         <label className="block text-xs font-bold text-slate-600 mb-1">Email Pagos/Tesorería</label>
                                                         <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 text-sm"
