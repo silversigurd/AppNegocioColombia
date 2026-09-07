@@ -12,6 +12,15 @@ const { machineIdSync } = require('node-machine-id');
 
 const SECRET_SALT = 'CommerceOS_Pro_Secret_2026';
 
+// Pared real del plan Básico/Avanzado (ver INSTRUCCIONES_SISTEMA.txt).
+// La UI ya oculta RRHH en Básico, pero con nodeIntegration:true cualquiera
+// con DevTools puede llamar un handler IPC directo — el guard real va acá.
+function requireHR() {
+    if (secret('APP_PLAN', 'avanzado') === 'basico') {
+        throw new Error('Módulo RRHH no incluido en este plan.');
+    }
+}
+
 async function setupIpcHandlers() {
     // Wait for DB initialization (migrations) before allowing IPC calls to proceed
     await dbReady;
@@ -526,6 +535,7 @@ async function setupIpcHandlers() {
 
     // --- EMPLEADOS (RRHH) ---
     ipcMain.handle('get-empleados', async (event, sucursal_id) => {
+        requireHR();
         let query = `SELECT * FROM Empleados WHERE (estado = 'Activo' OR estado IS NULL)`;
         const params = [];
         if (sucursal_id) {
@@ -536,10 +546,12 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('get-empleados-desvinculados', async () => {
+        requireHR();
         return dbAll(`SELECT * FROM Empleados WHERE estado = 'Desvinculado' ORDER BY fecha_egreso DESC`);
     });
 
     ipcMain.handle('save-empleado', async (event, empleado) => {
+        requireHR();
         const {
             nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             cedula_ciudadania, rut, eps, fondo_pensiones, arl,
@@ -568,6 +580,7 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('update-empleado', async (event, empleado) => {
+        requireHR();
         const {
             id, nombre, cargo, tarifa_hora, sucursal_id, dni, cuil,
             cedula_ciudadania, rut, eps, fondo_pensiones, arl,
@@ -597,11 +610,13 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('delete-empleado', async (event, id) => {
+        requireHR();
         await dbRun('DELETE FROM Empleados WHERE id = ?', [id]);
         return { success: true };
     });
 
     ipcMain.handle('desvincular-empleado', async (event, { id, causal_egreso, fecha_egreso, indemnizacion_json }) => {
+        requireHR();
         await dbRun(
             `UPDATE Empleados SET estado = 'Desvinculado', causal_egreso = ?, fecha_egreso = ?, indemnizacion_json = ? WHERE id = ?`,
             [causal_egreso, fecha_egreso, indemnizacion_json || null, id]
@@ -610,6 +625,7 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('select-contrato-empleado', async (event, empleadoId) => {
+        requireHR();
         try {
             const { canceled, filePaths } = await dialog.showOpenDialog({
                 properties: ['openFile'],
@@ -645,6 +661,7 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('upload-contrato-empleado', async (event, sourcePath, empleadoId) => {
+        requireHR();
         try {
             const userDataPath = app.getPath('userData');
             const contractsDir = path.join(userDataPath, 'contratos_rrhh');
@@ -667,6 +684,7 @@ async function setupIpcHandlers() {
 
     // --- LIQUIDACIONES DE SUELDO ---
     ipcMain.handle('save-liquidacion', async (event, liquidacionData) => {
+        requireHR();
         const { empleado_id, periodo, fecha_pago, banco_deposito, total_bruto, total_retenciones, total_neto, conceptos } = liquidacionData;
 
         try {
@@ -694,6 +712,7 @@ async function setupIpcHandlers() {
     });
 
     ipcMain.handle('get-liquidaciones-empleado', async (event, empleado_id) => {
+        requireHR();
         const liquidaciones = await dbAll(
             'SELECT * FROM Liquidaciones WHERE empleado_id = ? ORDER BY id DESC',
             [empleado_id]
@@ -840,6 +859,10 @@ async function setupIpcHandlers() {
 
     // --- LICENCIAS (ACTIVACION POR HARDWARE) ---
     ipcMain.handle('check-license', async () => {
+        // Instaladores de demo: se activan solos, sin pedir Hardware ID/clave.
+        if (secret('DEMO_MODE') === 'true') {
+            return { activated: true, machineId: 'DEMO' };
+        }
         const hwId = machineIdSync({ original: true });
         const row = await dbGet("SELECT valor FROM Configuracion WHERE clave = 'license_key'");
 

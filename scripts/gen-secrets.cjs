@@ -25,6 +25,8 @@ const KEYS = [
   'MATIAS_API_URL',        // opcional — default sandbox
   'TURSO_DATABASE_URL',    // opcional — base por defecto (útil para tu propio despliegue / pruebas)
   'TURSO_AUTH_TOKEN',      // opcional — token de esa base por defecto
+  'APP_PLAN',              // opcional — 'basico' | 'avanzado' (default avanzado si no viene)
+  'DEMO_MODE',             // opcional — 'true' para saltar la pantalla de activación (instaladores demo)
 ];
 
 const out = {};

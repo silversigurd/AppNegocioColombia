@@ -34,10 +34,43 @@ que el cliente debe pegar en la app para activarla.
 -----------------------------------
 La base de datos (ventas, empleados, etc) y los contratos digitales
 se guardan en la carpeta de datos de aplicación de Windows:
-%APPDATA%/CommerceOS Pro/
+%APPDATA%/CommerceOS Pro Colombia/
 
-- Base de datos: commerce_data.sqlite
+- Base de datos: commerce_data_local.db (+ archivos -shm/-wal/-info al lado)
 - Contratos: contratos_rrhh/
+
+
+5. PLANES (BÁSICO / AVANZADO) Y DEMOS
+---------------------------------------
+Cada instalador que armás con `build:cliente` lleva un plan horneado
+adentro (no es un toggle que el cliente pueda cambiar solo):
+
+- Avanzado: todo, incluido RRHH (legajos, contratos, nómina/liquidaciones,
+  bajas con indemnización).
+- Básico: igual, pero sin RRHH — el ítem no aparece en el menú y los
+  handlers de backend correspondientes rechazan la llamada aunque alguien
+  la fuerce desde DevTools (`APP_PLAN=basico`, ver `requireHR()` en
+  `ipcHandlers.cjs`).
+
+`npm run build:cliente -- <slug>` ahora te pregunta el plan al crear un
+cliente nuevo (y lo recuerda en `scripts/clientes.local.json` para los
+rebuilds siguientes — no vuelve a preguntar salvo que elijas "Actualizar
+URL/token/plan").
+
+PARA ARMAR UNA DEMO PARA UN PROSPECTO:
+> npm run build:cliente -- <slug-del-prospecto>
+
+Cuando pregunte "¿Es una demo?" respondé "s". Eso hace que el instalador:
+- Arranque directo, SIN pantalla de activación (no hace falta pedirle el
+  Hardware ID ni generarle una clave).
+- Corra 100% local, sin Turso (no toca ninguna base en la nube).
+- Use los datos de ejemplo que ya trae el sistema al iniciar por primera
+  vez (3 productos + usuario Principal/admin).
+
+Para resetear la demo antes de dársela a otro prospecto (o para volver a
+probarla vos), borrá:
+%APPDATA%/CommerceOS Pro Colombia/commerce_data_local.db*
+(o directamente desinstalá/reinstalá el .exe de la demo).
 ========================================================================
 
 

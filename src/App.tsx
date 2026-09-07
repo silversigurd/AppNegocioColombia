@@ -17,6 +17,7 @@ import { ipc } from './utils/ipc';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { Navigate, useLocation } from 'react-router-dom';
+import { hasHR } from './utils/plan';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { isAuthenticated, user } = useAuth();
@@ -145,7 +146,9 @@ function AppContent() {
           <Route path="proveedores" element={<ProtectedRoute allowedRoles={['Admin']}><Providers /></ProtectedRoute>} />
           <Route path="caja" element={<ProtectedRoute allowedRoles={['Admin']}><Finance /></ProtectedRoute>} />
           <Route path="facturacion-dian" element={<ProtectedRoute allowedRoles={['Admin']}><FacturacionDIAN /></ProtectedRoute>} />
-          <Route path="sucursales" element={<ProtectedRoute allowedRoles={['Admin']}><Branches /></ProtectedRoute>} />
+          {hasHR && (
+            <Route path="sucursales" element={<ProtectedRoute allowedRoles={['Admin']}><Branches /></ProtectedRoute>} />
+          )}
           <Route path="usuarios" element={<ProtectedRoute allowedRoles={['Admin']}><Users /></ProtectedRoute>} />
           <Route path="ajustes" element={<ProtectedRoute allowedRoles={['Admin']}><Settings /></ProtectedRoute>} />
         </Route>

@@ -103,21 +103,36 @@ async function main() {
   let cli = clientes[slug];
   if (cli) {
     console.log(`\nUsando cliente guardado: ${cli.nombre} (${slug})`);
-    const cambiar = (await ask('Actualizar URL/token? [s/N]: ')).toLowerCase();
+    console.log(`  Plan: ${cli.plan || 'avanzado'}${cli.demo ? ' (DEMO — sin licencia, sin Turso)' : ''}`);
+    const cambiar = (await ask('Actualizar URL/token/plan? [s/N]: ')).toLowerCase();
     if (cambiar === 's' || cambiar === 'si') cli = null;
   }
 
   if (!cli) {
     const nombre = (await ask('Nombre del negocio: ')) || slug;
-    const url = await ask('TURSO_DATABASE_URL (libsql://...): ');
-    const token = await ask('TURSO_AUTH_TOKEN: ');
-    if (!/^libsql:\/\/|^https:\/\//.test(url) || !token) {
-      fail('URL o token invalidos. Cancelado.');
+
+    const demoAns = (await ask('¿Es una demo (sin pantalla de licencia, corre 100% local sin Turso)? [s/N]: ')).toLowerCase();
+    const demo = demoAns === 's' || demoAns === 'si';
+
+    let url = '';
+    let token = '';
+    if (demo) {
+      console.log('  Demo: se omite Turso — corre 100% local con los datos de ejemplo (ver INSTRUCCIONES_SISTEMA.txt).');
+    } else {
+      url = await ask('TURSO_DATABASE_URL (libsql://...): ');
+      token = await ask('TURSO_AUTH_TOKEN: ');
+      if (!/^libsql:\/\/|^https:\/\//.test(url) || !token) {
+        fail('URL o token invalidos. Cancelado.');
+      }
+      console.log('\nProbando conexion con Turso...');
+      if (!(await testTurso(url, token))) fail('Cancelado.');
+      console.log('  Conexion OK');
     }
-    console.log('\nProbando conexion con Turso...');
-    if (!(await testTurso(url, token))) fail('Cancelado.');
-    console.log('  Conexion OK');
-    cli = { nombre, tursoUrl: url, tursoToken: token };
+
+    const planAns = (await ask('Plan del cliente [basico/avanzado] (default avanzado): ')).toLowerCase();
+    const plan = planAns === 'basico' ? 'basico' : 'avanzado';
+
+    cli = { nombre, tursoUrl: url, tursoToken: token, plan, demo };
     clientes[slug] = cli;
     saveClientes(clientes);
     console.log(`  Guardado en ${path.relative(ROOT, CLIENTES_FILE)}`);
@@ -125,13 +140,21 @@ async function main() {
 
   rl.close();
 
-  console.log(`\n> Compilando instalador para "${cli.nombre}" - v${pkg.version}\n`);
+  console.log(`\n> Compilando instalador para "${cli.nombre}" - v${pkg.version} (plan ${cli.plan || 'avanzado'}${cli.demo ? ', DEMO' : ''})\n`);
 
-  const env = {
-    ...process.env,
-    TURSO_DATABASE_URL: cli.tursoUrl,
-    TURSO_AUTH_TOKEN: cli.tursoToken,
-  };
+  const env = { ...process.env };
+  if (cli.tursoUrl && cli.tursoToken) {
+    env.TURSO_DATABASE_URL = cli.tursoUrl;
+    env.TURSO_AUTH_TOKEN = cli.tursoToken;
+  } else {
+    // Vacío (no ausente): así gen-secrets.cjs no rellena con el .env del
+    // desarrollador — el build queda 100% local, sin credenciales de nadie.
+    env.TURSO_DATABASE_URL = '';
+    env.TURSO_AUTH_TOKEN = '';
+  }
+  env.APP_PLAN = cli.plan || 'avanzado';
+  env.VITE_APP_PLAN = cli.plan || 'avanzado';
+  env.DEMO_MODE = cli.demo ? 'true' : '';
 
   let buildOk = true;
   try {
@@ -159,10 +182,18 @@ async function main() {
   console.log('\n----------------------------------------------');
   console.log(`Instalador listo: ${path.relative(ROOT, dest)}`);
   console.log('----------------------------------------------');
-  console.log(`\nMandale ESE archivo a ${cli.nombre}. Al instalar:`);
-  console.log('  1. Abre la app -> aparece la pantalla de activacion con su Hardware ID.');
-  console.log('  2. Te pasa ese ID -> corres  node scripts/generate-key.cjs <id>  -> le devolves la clave.');
-  console.log('  3. Activa y ya queda sincronizando con su base Turso.\n');
+  if (cli.demo) {
+    console.log(`\nMandale ESE archivo a ${cli.nombre}. Es una demo (plan ${cli.plan || 'avanzado'}):`);
+    console.log('  - Abre directo, sin pantalla de activacion.');
+    console.log('  - Corre 100% local (sin Turso), con los datos de ejemplo de siempre.');
+    console.log('  - Para resetearla antes del proximo prospecto: borrar');
+    console.log('    %APPDATA%\\CommerceOS Pro Colombia\\commerce_data_local.db*  (o reinstalar).\n');
+  } else {
+    console.log(`\nMandale ESE archivo a ${cli.nombre} (plan ${cli.plan || 'avanzado'}). Al instalar:`);
+    console.log('  1. Abre la app -> aparece la pantalla de activacion con su Hardware ID.');
+    console.log('  2. Te pasa ese ID -> corres  node scripts/generate-key.cjs <id>  -> le devolves la clave.');
+    console.log('  3. Activa y ya queda sincronizando con su base Turso.\n');
+  }
 }
 
 main().catch((e) => {

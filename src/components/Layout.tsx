@@ -13,6 +13,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { ipc } from '../utils/ipc';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { hasHR } from '../utils/plan';
 
 const navItems = [
     { path: '/', label: 'Panel de Control', icon: <DashboardIcon /> },
@@ -22,7 +23,7 @@ const navItems = [
     { path: '/proveedores', label: 'Proveedores', icon: <LocalShippingIcon />, roles: ['Admin'] },
     { path: '/caja', label: 'Caja y Finanzas', icon: <AccountBalanceWalletIcon />, roles: ['Admin'] },
     { path: '/facturacion-dian', label: 'Facturación DIAN', icon: <ReceiptLongIcon />, roles: ['Admin'], requiresDian: true },
-    { path: '/sucursales', label: 'RRHH', icon: <StoreIcon />, roles: ['Admin'] },
+    { path: '/sucursales', label: 'RRHH', icon: <StoreIcon />, roles: ['Admin'], requiresHR: true },
     { path: '/usuarios', label: 'Usuarios', icon: <ManageAccountsIcon />, roles: ['Admin'] },
     { path: '/ajustes', label: 'Ajustes', icon: <SettingsIcon />, roles: ['Admin'] },
 ];
@@ -68,6 +69,8 @@ export default function Layout() {
                         if (item.roles && user && !item.roles.includes(user.rol)) return null;
                         // Ocultar Facturación DIAN si el negocio no la usa
                         if (item.requiresDian && !settings.dianCompliance2026) return null;
+                        // Ocultar RRHH en el plan Básico
+                        if (item.requiresHR && !hasHR) return null;
 
                         const isActive = location.pathname === item.path;
                         const badge = item.path === '/facturacion-dian' && facturasPendientes > 0 ? facturasPendientes : null;
