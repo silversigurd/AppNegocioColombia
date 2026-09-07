@@ -20,9 +20,15 @@ Sin ese cliente, seguir "adelantando" trabajo es especulativo — el roadmap de 
 1. Elegir con el usuario si seguir #3 (IBUA/ICUI real) o #5 (numeración sin huecos) del roadmap — o directamente priorizar lo que el cliente real necesite.
 2. Migrar la cuenta MATIAS de sandbox a producción para ese negocio (requiere certificado digital + resolución DIAN real del cliente).
 3. Correr `npm run build:cliente -- <slug>` por primera vez de punta a punta.
-4. Deuda técnica pendiente sin urgencia: sacar `sqlite3` de `dependencies`/scripts de build (ya no se usa, quedó de antes de Turso).
+4. ~~Sacar `sqlite3` de `dependencies`/scripts de build~~ — hecho 2026-09-07 (ver entrada abajo).
 
 **Instrucción para todas las sesiones:** cada vez que se haga un cambio real en el proyecto durante esta conversación, actualizar esta sección (y el resto del documento si corresponde) para que `Contexto.md` refleje siempre el estado vigente.
+
+**2026-09-07 — chore: eliminado `sqlite3` del proyecto.** El paquete `sqlite3` quedó de antes de la migración a Turso y ya no se usa en runtime — `db.cjs`/`ipcHandlers.cjs` van 100% por `@libsql/client`. Sus únicos consumidores eran 4 scripts de debug sueltos en la raíz (`check-db.cjs`, `check-tables.cjs`, `check-tables-root.cjs`, `debug_settings.cjs`) que además apuntaban a un archivo (`commerce_data.sqlite`) que ya no existe (hoy la réplica local es `commerce_data_local.db`). Cambios:
+- Borrados esos 4 scripts.
+- `package.json`: `sqlite3` fuera de `dependencies`; el step `npx @electron/rebuild -f -w sqlite3` sacado de `electron:build` (libSQL trae binarios precompilados, no necesita rebuild; `electron:dist` ya tenía `npmRebuild: false`); `build.asarUnpack` (solo tenía la entrada de sqlite3) eliminado.
+- `package-lock.json` regenerado con `npm install --package-lock-only` (se fueron ~800 líneas del subárbol de sqlite3: node-gyp, node-addon-api, etc.).
+- No se pudo correr `tsc`/`eslint`/la app en esta sesión (este checkout no tiene `node_modules`). El cambio es solo de packaging/deps y no toca código de la app; igual conviene un `npm install` limpio + `npm run electron:dev` de humo antes del próximo build.
 
 **2026-09-04 — fix: no se podían borrar productos con historial en Inventario.** Causa: `delete-producto` (`ipcHandlers.cjs`) hacía `DELETE FROM Productos` sin chequear si el producto tenía ventas (`DetallesVenta`) o pedidos (`DetallesPedido`) asociados; esas tablas tienen FK a `Productos` sin `ON DELETE CASCADE`/`SET NULL`, así que la query fallaba con `SQLITE_CONSTRAINT: FOREIGN KEY constraint failed` — y el error solo se logueaba en consola, nunca se mostraba al usuario, por eso "no dejaba" sin explicación. Confirmado el bug real reproduciéndolo contra una copia offline del `commerce_data_local.db` real (no se tocó la base real ni Turso).
 - Fix: columna nueva `Productos.activo` (`db.cjs`, migración idempotente, default 1). `delete-producto` ahora chequea si el producto tiene ventas/pedidos; si tiene, hace soft-delete (`activo=0`, se oculta pero preserva el historial/facturación vieja intacta); si no tiene, borra en serio como antes. `get-productos` ahora filtra `WHERE activo = 1`.
