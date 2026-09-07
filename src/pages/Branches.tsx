@@ -27,21 +27,17 @@ interface Empleado {
     id?: number;
     nombre: string;
     cargo: string;
-    dni: string; // Argentina
-    cuil: string; // Argentina
-    cedula_ciudadania?: string; // Colombia
-    documento_extranjeria?: string; // Colombia
-    rut?: string; // Colombia
-    eps?: string; // Colombia
-    fondo_pensiones?: string; // Colombia
-    arl?: string; // Colombia
-    vacunacion_rabia?: boolean; // Colombia - Petshop
-    matricula_profesional?: string; // Colombia - Veterinario
+    cedula_ciudadania?: string;
+    documento_extranjeria?: string;
+    rut?: string;
+    eps?: string;
+    fondo_pensiones?: string;
+    arl?: string;
+    vacunacion_rabia?: boolean; // Petshop
+    matricula_profesional?: string; // Veterinario
     direccion: string;
     telefono?: string;
-    partido: string;
     localidad: string;
-    obra_social: string;
     fecha_ingreso: string;
     categoria_cct: string;
     sueldo_basico: number;
@@ -69,13 +65,12 @@ export default function Branches() {
     // Desvinculación State
     const [isDesvinculacionOpen, setIsDesvinculacionOpen] = useState(false);
     const [desvinculacionData, setDesvinculacionData] = useState({
-        causal_egreso: 'Renuncia del trabajador (Art. 240 LCT)',
+        causal_egreso: 'Renuncia voluntaria del trabajador (Art. 61 CST)',
         fecha_egreso: new Date().toISOString().slice(0, 10)
     });
     const [indemnizacion, setIndemnizacion] = useState<any>(null);
     const [empleadosDesvinculados, setEmpleadosDesvinculados] = useState<Empleado[]>([]);
     const [showHistorial, setShowHistorial] = useState(false);
-    const [cuilError, setCuilError] = useState('');
     const [viewingIndemnizacion, setViewingIndemnizacion] = useState<any>(null);
 
     // Vacation State
@@ -87,197 +82,132 @@ export default function Branches() {
     });
     const [novedadesMes, setNovedadesMes] = useState({ heDiurnas: 0, heNocturnas: 0, recNocturno: 0, dominicales: 0 });
 
-    // Calcular indemnización según LCT/Ley Bases (ARG) o CST (COL)
+    // Calcular indemnización según Ley 2466 de 2025 / CST
     const calcularIndemnizacion = (emp: Empleado, causal: string, fechaEgreso: string) => {
         const ingreso = new Date(emp.fecha_ingreso);
         const egreso = new Date(fechaEgreso);
         const msDay = 1000 * 3600 * 24;
-        const msYear = msDay * 365.25;
         const totalDays = (egreso.getTime() - ingreso.getTime()) / msDay;
         const aniosTotales = totalDays / 365.25;
-        const aniosRedondeados = Math.max(1, Math.ceil(aniosTotales));
         const basico = Number(emp.sueldo_basico) || 0;
 
         let items: { concepto: string, monto: number, detalle: string }[] = [];
         let total = 0;
 
-        if (settings.pais === 'Colombia') {
-            // LÓGICA COLOMBIA — Ley 2466 de 2025 / CST Art. 61, 62 y 64 (Reformado)
-            const esIndefinido = emp.modalidad_contratacion?.includes('Indefinido') || emp.modalidad_contratacion === 'Formal';
-            const esFijo = emp.modalidad_contratacion?.includes('Fijo') || emp.modalidad_contratacion?.includes('Obra');
-            const esInformal = emp.modalidad_contratacion === 'Informal' || emp.modalidad_contratacion === 'No registrado';
-            const salarioDia = basico / 30;
+        // Ley 2466 de 2025 / CST Art. 61, 62 y 64 (Reformado)
+        const esIndefinido = emp.modalidad_contratacion?.includes('Indefinido') || emp.modalidad_contratacion === 'Formal';
+        const esFijo = emp.modalidad_contratacion?.includes('Fijo') || emp.modalidad_contratacion?.includes('Obra');
+        const esInformal = emp.modalidad_contratacion === 'Informal' || emp.modalidad_contratacion === 'No registrado';
+        const salarioDia = basico / 30;
 
-            // Causales que generan indemnización por despido injusto (Art. 64 + Ley 2466)
-            const esDespidoInjusto = causal.includes('sin justa causa') || causal.includes('despido indirecto') || causal.includes('acoso');
-            // Causales por justa causa (Art. 62 CST) — NO generan indemnización
-            const esJustaCausa = causal.includes('justa causa') && !esDespidoInjusto;
-            // Causales legales sin indemnización (Art. 61 CST)
-            const esCausalLegal = causal.includes('Renuncia') || causal.includes('mutuo acuerdo') ||
-                                  causal.includes('expiración') || causal.includes('Terminación de la obra') ||
-                                  causal.includes('pensión') || causal.includes('Muerte');
+        // Causales que generan indemnización por despido injusto (Art. 64 + Ley 2466)
+        const esDespidoInjusto = causal.includes('sin justa causa') || causal.includes('despido indirecto') || causal.includes('acoso');
+        // Causales por justa causa (Art. 62 CST) — NO generan indemnización
+        const esJustaCausa = causal.includes('justa causa') && !esDespidoInjusto;
+        // Causales legales sin indemnización (Art. 61 CST)
+        const esCausalLegal = causal.includes('Renuncia') || causal.includes('mutuo acuerdo') ||
+                              causal.includes('expiración') || causal.includes('Terminación de la obra') ||
+                              causal.includes('pensión') || causal.includes('Muerte');
 
-            if (causal.includes('Renuncia')) {
-                return {
-                    items: [
-                        { concepto: 'Renuncia Voluntaria', monto: 0, detalle: 'No genera pago de indemnización ni cálculo automático de prestaciones en esta vista.' }
-                    ],
-                    total: 0,
-                    anios: aniosTotales.toFixed(2),
-                    MRMNH: basico,
-                    isWithinTrial: false,
-                    trialMonths: 2
-                };
-            }
+        if (causal.includes('Renuncia')) {
+            return {
+                items: [
+                    { concepto: 'Renuncia Voluntaria', monto: 0, detalle: 'No genera pago de indemnización ni cálculo automático de prestaciones en esta vista.' }
+                ],
+                total: 0,
+                anios: aniosTotales.toFixed(2),
+                MRMNH: basico,
+                isWithinTrial: false,
+                trialMonths: 2
+            };
+        }
 
-            if (esDespidoInjusto && !esInformal) {
-                if (esIndefinido) {
-                    // Tabla de indemnización por tramos — Ley 2466/2025 Art. 64 CST
-                    let diasIndem = 0;
-                    const aniosCompletos = Math.floor(aniosTotales);
-                    const fraccionAnio = aniosTotales - aniosCompletos;
+        if (esDespidoInjusto && !esInformal) {
+            if (esIndefinido) {
+                // Tabla de indemnización por tramos — Ley 2466/2025 Art. 64 CST
+                let diasIndem = 0;
+                const aniosCompletos = Math.floor(aniosTotales);
+                const fraccionAnio = aniosTotales - aniosCompletos;
 
-                    if (basico < TOPE_INDEM_BAJO) {
-                        // Salario < 10 SMLMV
-                        if (aniosTotales < 1) {
-                            // Menos de 1 año: proporcional sobre 35 días
-                            diasIndem = INDEM_BAJO_PRIMER_ANO * aniosTotales;
-                        } else {
-                            diasIndem = INDEM_BAJO_PRIMER_ANO; // 35 días por el 1er año
-                            const aniosSubs = aniosCompletos - 1 + fraccionAnio;
-                            if (aniosCompletos < 5) {
-                                // Tramo 1–4 años extra: 15 días por año
-                                diasIndem += INDEM_BAJO_1A5 * aniosSubs;
-                            } else if (aniosCompletos < 10) {
-                                // Tramo 5–9 años extra: 30 días por año
-                                diasIndem += INDEM_BAJO_1A5 * 4; // primeros 4 años subs al 15
-                                diasIndem += INDEM_BAJO_5A10 * (aniosSubs - 4);
-                            } else {
-                                // 10+ años: 60 días por año
-                                diasIndem += INDEM_BAJO_1A5 * 4;  // 4 años al 15
-                                diasIndem += INDEM_BAJO_5A10 * 5; // 5 años al 30
-                                diasIndem += INDEM_BAJO_MAS10 * (aniosSubs - 9);
-                            }
-                        }
+                if (basico < TOPE_INDEM_BAJO) {
+                    // Salario < 10 SMLMV
+                    if (aniosTotales < 1) {
+                        // Menos de 1 año: proporcional sobre 35 días
+                        diasIndem = INDEM_BAJO_PRIMER_ANO * aniosTotales;
                     } else {
-                        // Salario ≥ 10 SMLMV
-                        if (aniosTotales < 1) {
-                            diasIndem = INDEM_ALTO_PRIMER_ANO * aniosTotales;
+                        diasIndem = INDEM_BAJO_PRIMER_ANO; // 35 días por el 1er año
+                        const aniosSubs = aniosCompletos - 1 + fraccionAnio;
+                        if (aniosCompletos < 5) {
+                            // Tramo 1–4 años extra: 15 días por año
+                            diasIndem += INDEM_BAJO_1A5 * aniosSubs;
+                        } else if (aniosCompletos < 10) {
+                            // Tramo 5–9 años extra: 30 días por año
+                            diasIndem += INDEM_BAJO_1A5 * 4; // primeros 4 años subs al 15
+                            diasIndem += INDEM_BAJO_5A10 * (aniosSubs - 4);
                         } else {
-                            diasIndem = INDEM_ALTO_PRIMER_ANO + INDEM_ALTO_SIGUIENTES * (aniosTotales - 1);
+                            // 10+ años: 60 días por año
+                            diasIndem += INDEM_BAJO_1A5 * 4;  // 4 años al 15
+                            diasIndem += INDEM_BAJO_5A10 * 5; // 5 años al 30
+                            diasIndem += INDEM_BAJO_MAS10 * (aniosSubs - 9);
                         }
                     }
-
-                    const montoIndem = salarioDia * diasIndem;
-                    items.push({
-                        concepto: 'Indemnización Despido Injusto (Art. 64 CST — Ley 2466/2025)',
-                        monto: montoIndem,
-                        detalle: `${diasIndem.toFixed(1)} días × $${Math.round(salarioDia).toLocaleString('es-CO')} | ${aniosTotales.toFixed(2)} años de servicio`
-                    });
-                    total += montoIndem;
-
-                } else if (esFijo) {
-                    // Contratos fijo/obra: salarios pendientes, mínimo 45 días (Ley 2466)
-                    const indemMinFijo = salarioDia * INDEM_FIJO_MIN_DIAS;
-                    items.push({
-                        concepto: 'Indemnización Contrato Fijo/Obra (Art. 64 CST — Ley 2466/2025)',
-                        monto: indemMinFijo,
-                        detalle: `Mínimo legal: ${INDEM_FIJO_MIN_DIAS} días de salario ($${Math.round(indemMinFijo).toLocaleString('es-CO')}). Verificar días faltantes al vencimiento del contrato.`
-                    });
-                    total += indemMinFijo;
-                }
-            } else if (esJustaCausa) {
-                items.push({
-                    concepto: 'Despido con Justa Causa (Art. 62 CST)',
-                    monto: 0,
-                    detalle: 'No genera indemnización. Requiere debido proceso: mín. 5 días hábiles de defensa + audiencia de descargos.'
-                });
-            } else if (esCausalLegal) {
-                items.push({
-                    concepto: 'Terminación por Causal Legal (Art. 61 CST)',
-                    monto: 0,
-                    detalle: `Causal: ${causal}. Solo se liquidan prestaciones sociales.`
-                });
-            }
-
-            // Prestaciones Sociales Proporcionales (Liquidación de Ley — siempre obligatorias)
-            const diasEnAnoActual = totalDays % 365.25;
-            const mesesEnAnoActual = diasEnAnoActual / 30;
-            const cesantias = (basico / 360) * totalDays;
-            const intereses = cesantias * PRESTACIONES.INT_CESANTIAS * (diasEnAnoActual / 360);
-            const prima = (basico / 360) * diasEnAnoActual;
-            const vacaciones = (basico / 720) * totalDays;
-
-            items.push({ concepto: 'Cesantías Proporcionales (1 mes/año)', monto: cesantias, detalle: `Base $${Math.round(basico).toLocaleString('es-CO')} × ${totalDays} días / 360` });
-            items.push({ concepto: 'Intereses sobre Cesantías (12% anual)', monto: intereses, detalle: `12% sobre $${Math.round(cesantias).toLocaleString('es-CO')} proporcional` });
-            items.push({ concepto: 'Prima de Servicios Proporcional', monto: prima, detalle: `Semestre en curso (${Math.round(mesesEnAnoActual * 10) / 10} meses)` });
-            items.push({ concepto: 'Vacaciones Proporcionales (15 días/año)', monto: vacaciones, detalle: `${totalDays} días trabajados / 720` });
-
-            total += cesantias + intereses + prima + vacaciones;
-
-            return { items, total, anios: aniosTotales.toFixed(2), MRMNH: basico, isWithinTrial: totalDays <= 60, trialMonths: 2 };
-
-        } else {
-            // LÓGICA ARGENTINA (LCT / Ley Bases 2024)
-            let MRMNH = basico;
-            if (settings.hrCctTope > 0 && MRMNH > settings.hrCctTope) {
-                MRMNH = settings.hrCctTope;
-            }
-
-            const inicioAnio = new Date(egreso.getFullYear(), 0, 1);
-            const mesesTranscurridos = (egreso.getTime() - inicioAnio.getTime()) / (msYear / 12);
-            const aguinaldoProporcional = (Number(emp.sueldo_basico) / 12) * Math.min(mesesTranscurridos, 12);
-
-            const diasVacacionesAnuales = aniosTotales < 5 ? 14 : aniosTotales < 10 ? 21 : aniosTotales < 20 ? 28 : 35;
-            const diasVacacionesProp = Math.floor((diasVacacionesAnuales / 12) * (mesesTranscurridos % 12));
-            const vacacionesProporcional = (Number(emp.sueldo_basico) / 25) * diasVacacionesProp;
-
-            let trialMonths = 6;
-            if (settings.hrEmpresaSize === 'pyme1') trialMonths = 12;
-            else if (settings.hrEmpresaSize === 'pyme2') trialMonths = 8;
-
-            const isWithinTrial = totalDays <= (trialMonths * 30.5);
-
-            if (causal.includes('sin justa causa') && !isWithinTrial) {
-                let diasPreaviso = aniosTotales < 5 ? 30 : 60;
-                const preaviso = (MRMNH / 30) * diasPreaviso;
-                items.push({ concepto: 'Preaviso (Art. 231 LCT)', monto: preaviso, detalle: `${diasPreaviso} días` });
-                total += preaviso;
-
-                const sacPreaviso = preaviso / 12;
-                items.push({ concepto: 'SAC s/ Preaviso', monto: sacPreaviso, detalle: '(1/12 del preaviso)' });
-                total += sacPreaviso;
-
-                if (settings.hrAplicaFondoCese) {
-                    items.push({ concepto: 'Antigüedad (Fondo de Cese)', monto: 0, detalle: 'Cubierto por aportes mensuales al Fondo de Cese Laboral.' });
                 } else {
-                    const antiguedad = MRMNH * aniosRedondeados;
-                    items.push({ concepto: 'Indemnización por Antigüedad (Art. 245)', monto: antiguedad, detalle: `${aniosRedondeados} años x $${MRMNH.toLocaleString('es-AR')}` });
-                    total += antiguedad;
+                    // Salario ≥ 10 SMLMV
+                    if (aniosTotales < 1) {
+                        diasIndem = INDEM_ALTO_PRIMER_ANO * aniosTotales;
+                    } else {
+                        diasIndem = INDEM_ALTO_PRIMER_ANO + INDEM_ALTO_SIGUIENTES * (aniosTotales - 1);
+                    }
                 }
+
+                const montoIndem = salarioDia * diasIndem;
+                items.push({
+                    concepto: 'Indemnización Despido Injusto (Art. 64 CST — Ley 2466/2025)',
+                    monto: montoIndem,
+                    detalle: `${diasIndem.toFixed(1)} días × $${Math.round(salarioDia).toLocaleString('es-CO')} | ${aniosTotales.toFixed(2)} años de servicio`
+                });
+                total += montoIndem;
+
+            } else if (esFijo) {
+                // Contratos fijo/obra: salarios pendientes, mínimo 45 días (Ley 2466)
+                const indemMinFijo = salarioDia * INDEM_FIJO_MIN_DIAS;
+                items.push({
+                    concepto: 'Indemnización Contrato Fijo/Obra (Art. 64 CST — Ley 2466/2025)',
+                    monto: indemMinFijo,
+                    detalle: `Mínimo legal: ${INDEM_FIJO_MIN_DIAS} días de salario ($${Math.round(indemMinFijo).toLocaleString('es-CO')}). Verificar días faltantes al vencimiento del contrato.`
+                });
+                total += indemMinFijo;
             }
-
-            if (causal.includes('con justa causa')) {
-                items.push({ concepto: 'Nota: Despido con justa causa (Art. 242)', monto: 0, detalle: 'No genera indemnización por antigüedad.' });
-            }
-
-            if (causal.includes('Fin de periodo de prueba') || (causal.includes('sin justa causa') && isWithinTrial)) {
-                let diasPreaviso = 15;
-                const preavisoPrueba = (MRMNH / 30) * diasPreaviso;
-                items.push({ concepto: 'Preaviso Periodo Prueba (Art. 92 bis)', monto: preavisoPrueba, detalle: '15 días' });
-                total += preavisoPrueba;
-                const sacPreavisoPrueba = preavisoPrueba / 12;
-                items.push({ concepto: 'SAC s/ Preaviso Pr.', monto: sacPreavisoPrueba, detalle: '(1/12)' });
-                total += sacPreavisoPrueba;
-            }
-
-            items.push({ concepto: 'Vacaciones Proporcionales (LCT)', monto: vacacionesProporcional, detalle: `${diasVacacionesProp} días` });
-            total += vacacionesProporcional;
-            items.push({ concepto: 'SAC Proporcional por período', monto: aguinaldoProporcional, detalle: `${Math.min(mesesTranscurridos, 12).toFixed(1)} meses` });
-            total += aguinaldoProporcional;
-
-            return { items, total, anios: aniosTotales.toFixed(2), MRMNH, isWithinTrial, trialMonths };
+        } else if (esJustaCausa) {
+            items.push({
+                concepto: 'Despido con Justa Causa (Art. 62 CST)',
+                monto: 0,
+                detalle: 'No genera indemnización. Requiere debido proceso: mín. 5 días hábiles de defensa + audiencia de descargos.'
+            });
+        } else if (esCausalLegal) {
+            items.push({
+                concepto: 'Terminación por Causal Legal (Art. 61 CST)',
+                monto: 0,
+                detalle: `Causal: ${causal}. Solo se liquidan prestaciones sociales.`
+            });
         }
+
+        // Prestaciones Sociales Proporcionales (Liquidación de Ley — siempre obligatorias)
+        const diasEnAnoActual = totalDays % 365.25;
+        const mesesEnAnoActual = diasEnAnoActual / 30;
+        const cesantias = (basico / 360) * totalDays;
+        const intereses = cesantias * PRESTACIONES.INT_CESANTIAS * (diasEnAnoActual / 360);
+        const prima = (basico / 360) * diasEnAnoActual;
+        const vacaciones = (basico / 720) * totalDays;
+
+        items.push({ concepto: 'Cesantías Proporcionales (1 mes/año)', monto: cesantias, detalle: `Base $${Math.round(basico).toLocaleString('es-CO')} × ${totalDays} días / 360` });
+        items.push({ concepto: 'Intereses sobre Cesantías (12% anual)', monto: intereses, detalle: `12% sobre $${Math.round(cesantias).toLocaleString('es-CO')} proporcional` });
+        items.push({ concepto: 'Prima de Servicios Proporcional', monto: prima, detalle: `Semestre en curso (${Math.round(mesesEnAnoActual * 10) / 10} meses)` });
+        items.push({ concepto: 'Vacaciones Proporcionales (15 días/año)', monto: vacaciones, detalle: `${totalDays} días trabajados / 720` });
+
+        total += cesantias + intereses + prima + vacaciones;
+
+        return { items, total, anios: aniosTotales.toFixed(2), MRMNH: basico, isWithinTrial: totalDays <= 60, trialMonths: 2 };
     };
 
     // CCT Categories Management
@@ -296,8 +226,8 @@ export default function Branches() {
     const [isAddingCategoria, setIsAddingCategoria] = useState(false);
 
     const [formData, setFormData] = useState<Empleado>({
-        nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
-        localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
+        nombre: '', cargo: '', direccion: '',
+        localidad: '', fecha_ingreso: '', categoria_cct: '',
         sueldo_basico: 0, jornada_laboral: '', horas_parcial: 0, modalidad_contratacion: 'Indefinido', telefono: ''
     });
 
@@ -333,90 +263,17 @@ export default function Branches() {
         setIsVacationModalOpen(false);
         setIsDesvinculacionOpen(false);
         setViewingIndemnizacion(null);
-        setCuilError('');
 
         if (emp) {
             setFormData(emp);
         } else {
             setFormData({
-                nombre: '', cargo: '', dni: '', cuil: '', direccion: '', partido: '',
-                localidad: '', obra_social: '', fecha_ingreso: '', categoria_cct: '',
+                nombre: '', cargo: '', direccion: '',
+                localidad: '', fecha_ingreso: '', categoria_cct: '',
                 sueldo_basico: 0, jornada_laboral: 'Completa', horas_parcial: 0, modalidad_contratacion: 'Indefinido', telefono: ''
             });
         }
         setIsFormOpen(true);
-    };
-
-    const handleCuilChange = (val: string) => {
-        // The CUIL format is: XX-DNIDNI-X
-        // We auto-lock the middle 8 digits to the DNI already registered.
-        // The user only controls the 2-digit prefix and the 1-digit verification digit.
-        const dniDigits = (formData.dni || '').replace(/\D/g, '');
-
-        // Extract all typed digits
-        const typed = val.replace(/\D/g, '');
-
-        let prefix = '';
-        let suffix = '';
-
-        if (dniDigits.length > 0) {
-            // Build the canonical full number: prefix(2) + dni(up to 8) + suffix(1)
-            // User is typing so figure out what came before and after the DNI slot
-            const beforeDni = typed.slice(0, 2);
-            // Everything after the first 2 digits that isn't the DNI goes to suffix
-            const afterPrefix = typed.slice(2);
-            const dniInTyped = afterPrefix.slice(0, dniDigits.length);
-            const afterDni = afterPrefix.slice(dniDigits.length);
-
-            prefix = beforeDni.slice(0, 2);
-            suffix = afterDni.slice(0, 1);
-
-            // Build formatted CUIL with locked DNI
-            let formatted = prefix;
-            if (prefix.length === 2) {
-                formatted += '-' + dniDigits;
-                if (suffix.length === 1) {
-                    formatted += '-' + suffix;
-                }
-            }
-
-            // Validate: middle must match DNI
-            if (dniInTyped.length > 0 && dniInTyped !== dniDigits.slice(0, dniInTyped.length)) {
-                setCuilError(`El CUIL debe contener el mismo DNI (${dniDigits}) en el medio.`);
-            } else {
-                setCuilError('');
-            }
-
-            setFormData(prev => ({ ...prev, cuil: formatted }));
-        } else {
-            // No DNI yet — allow free typing with formatting
-            const numbers = typed.slice(0, 11);
-            let formatted = '';
-            if (numbers.length > 0) formatted += numbers.slice(0, 2);
-            if (numbers.length > 2) formatted += '-' + numbers.slice(2, 10);
-            if (numbers.length > 10) formatted += '-' + numbers.slice(10, 11);
-            setCuilError('Primero completá el campo DNI.');
-            setFormData(prev => ({ ...prev, cuil: formatted }));
-        }
-    };
-
-    // When DNI changes, auto-update the CUIL middle segment if CUIL prefix/suffix already entered
-    const handleDniChange = (val: string) => {
-        const numbers = val.replace(/\D/g, '').slice(0, 8);
-        setFormData(prev => {
-            // Re-derive CUIL with new DNI
-            const existingCuil = (prev.cuil || '').replace(/\D/g, '');
-            const existingPrefix = existingCuil.slice(0, 2);
-            const existingSuffix = existingCuil.slice(10, 11);
-            let newCuil = existingPrefix;
-            if (existingPrefix.length === 2 && numbers.length > 0) {
-                newCuil += '-' + numbers;
-                if (existingSuffix) newCuil += '-' + existingSuffix;
-            }
-            const finalCuil = existingPrefix.length === 2 && numbers.length > 0 ? newCuil : prev.cuil;
-            setCuilError('');
-            return { ...prev, dni: numbers, cuil: finalCuil };
-        });
     };
 
     const handleAddCategoria = () => {
@@ -442,16 +299,6 @@ export default function Branches() {
     const handleSaveEmpleado = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate CUIL contains the same DNI
-        const dniDigits = (formData.dni || '').replace(/\D/g, '');
-        const cuilDigits = (formData.cuil || '').replace(/\D/g, '');
-        const cuilMiddle = cuilDigits.slice(2, 10);
-        if (dniDigits && cuilMiddle && cuilMiddle !== dniDigits.padStart(8, '0').slice(0, cuilMiddle.length) && cuilMiddle !== dniDigits) {
-            setCuilError(`El CUIL ingresado no corresponde al DNI ${dniDigits}. El formato debe ser XX-${dniDigits}-X.`);
-            return;
-        }
-        setCuilError('');
-
         try {
             if (formData.id) {
                 await ipc.invoke('update-empleado', formData);
@@ -474,9 +321,7 @@ export default function Branches() {
                 ipc.invoke('delete-empleado', emp.id).then(() => loadEmpleados());
             }
         } else {
-            const defaultCausal = settings.pais === 'Colombia'
-                ? 'Renuncia voluntaria del trabajador (Art. 61 CST)'
-                : 'Renuncia del trabajador (Art. 240 LCT)';
+            const defaultCausal = 'Renuncia voluntaria del trabajador (Art. 61 CST)';
             const defaultFecha = new Date().toISOString().slice(0, 10);
             setSelectedEmpleado(emp);
             setDesvinculacionData({ causal_egreso: defaultCausal, fecha_egreso: defaultFecha });
@@ -559,107 +404,58 @@ export default function Branches() {
         const ahora = new Date();
         const periodo = ahora.toISOString().slice(0, 7);
 
-        if (settings.pais === 'Colombia') {
-            // LÓGICA COLOMBIA 2026
-            
-            let conceptos: any[] = [];
-            let totalRemunerativo = basico;
-            conceptos.push({ tipo: 'Remunerativo', descripcion: 'Sueldo Básico', unidad: '30 días', importe: basico });
+        const conceptos: any[] = [];
+        let totalRemunerativo = basico;
+        conceptos.push({ tipo: 'Remunerativo', descripcion: 'Sueldo Básico', unidad: '30 días', importe: basico });
 
-            // Auxilio de Transporte (si devenga menos de 2 SMMLV)
-            let totalNoRemunerativo = 0;
-            if (basico <= TOPE_AUX_TRANSPORTE) {
-                totalNoRemunerativo += AUX_TRANSPORTE_2026;
-                conceptos.push({ tipo: 'NoRemunerativo', descripcion: 'Auxilio de Transporte', unidad: 'Legal', importe: AUX_TRANSPORTE_2026 });
-            }
-
-            // Novedades y Recargos (CST 2026)
-            const valorHora = getValorHoraOrdinaria(basico, ahora);
-            
-            if (novedadesMes.recNocturno > 0) {
-                const montoRecNocturno = novedadesMes.recNocturno * valorHora * RECARGOS_2026.NOCTURNO;
-                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Recargo Nocturno', unidad: `${novedadesMes.recNocturno}h`, importe: montoRecNocturno });
-                totalRemunerativo += montoRecNocturno;
-            }
-            if (novedadesMes.heDiurnas > 0) {
-                const montoHED = novedadesMes.heDiurnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_DIURNA);
-                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Diurnas', unidad: `${novedadesMes.heDiurnas}h`, importe: montoHED });
-                totalRemunerativo += montoHED;
-            }
-            if (novedadesMes.heNocturnas > 0) {
-                const montoHEN = novedadesMes.heNocturnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_NOCTURNA);
-                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Nocturnas', unidad: `${novedadesMes.heNocturnas}h`, importe: montoHEN });
-                totalRemunerativo += montoHEN;
-            }
-            if (novedadesMes.dominicales > 0) {
-                const montoDominical = novedadesMes.dominicales * valorHora * (1 + RECARGOS_2026.DOMINICAL_ORDINARIO);
-                conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Dominicales', unidad: `${novedadesMes.dominicales}h`, importe: montoDominical });
-                totalRemunerativo += montoDominical;
-            }
-            
-            // Retenciones (Salud 4%, Pensión 4%) sobre el total remunerativo (devengado gravable)
-            const salud = totalRemunerativo * APORTES_EMPLEADO_2026.SALUD;
-            const pension = totalRemunerativo * APORTES_EMPLEADO_2026.PENSION;
-            conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Salud (4%)', unidad: '4%', importe: salud });
-            conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Pensión (4%)', unidad: '4%', importe: pension });
-
-            const totalRetenciones = salud + pension;
-            const totalBruto = totalRemunerativo + totalNoRemunerativo;
-            const totalNeto = totalBruto - totalRetenciones;
-
-            setPayrollPreview({
-                periodo,
-                fecha_pago: ahora.toISOString().slice(0, 10),
-                banco_deposito: 'Transferencia Bancaria',
-                conceptos, totalBruto, totalRetenciones, totalNeto
-            });
-
-        } else {
-            // LÓGICA ARGENTINA (CCT 130/75)
-            const ingreso = new Date(selectedEmpleado.fecha_ingreso);
-            const difTiempo = Math.abs(ahora.getTime() - ingreso.getTime());
-            const anios = Math.floor(difTiempo / (1000 * 3600 * 24 * 365.25));
-
-            const antiguedad = basico * 0.01 * anios;
-            const presentismo = (basico + antiguedad) * 0.0833;
-
-            const totalRemunerativo = basico + antiguedad + presentismo;
-            const sumaNoRem1 = 60000;
-            const sumaNoRem2 = 40000;
-            const totalNoRemunerativo = sumaNoRem1 + sumaNoRem2;
-            const totalBruto = totalRemunerativo + totalNoRemunerativo;
-
-            const jubilacion = totalRemunerativo * 0.11;
-            const pami = totalRemunerativo * 0.03;
-            const obraSocial = totalBruto * 0.03;
-            const cuotaSindical = totalBruto * 0.02;
-            const faecys = totalBruto * 0.005;
-            const aporteSolidarioOS = 8500;
-
-            const totalRetenciones = jubilacion + pami + obraSocial + cuotaSindical + faecys + aporteSolidarioOS;
-            const totalNeto = totalBruto - totalRetenciones;
-
-            const conceptos = [
-                { tipo: 'Remunerativo', descripcion: 'Sueldo Básico (Mes)', unidad: '30 días', importe: basico },
-                { tipo: 'Remunerativo', descripcion: 'Antigüedad (1%)', unidad: `${anios} años`, importe: antiguedad },
-                { tipo: 'Remunerativo', descripcion: 'Presentismo (Art 40)', unidad: '8.33%', importe: presentismo },
-                { tipo: 'NoRemunerativo', descripcion: 'Asign. No Remunerativa Acuerdo 2025', unidad: 'Fijo', importe: sumaNoRem1 },
-                { tipo: 'NoRemunerativo', descripcion: 'Asign. No Remunerativa Diciembre 2025', unidad: 'Fijo', importe: sumaNoRem2 },
-                { tipo: 'Retencion', descripcion: 'Jubilación SIPA (11%)', unidad: '11%', importe: jubilacion },
-                { tipo: 'Retencion', descripcion: 'Ley 19.032 PAMI (3%)', unidad: '3%', importe: pami },
-                { tipo: 'Retencion', descripcion: 'Obra Social (3%)', unidad: '3%', importe: obraSocial },
-                { tipo: 'Retencion', descripcion: 'Sindicato (2%)', unidad: '2%', importe: cuotaSindical },
-                { tipo: 'Retencion', descripcion: 'FAECYS (0.5%)', unidad: '0.5%', importe: faecys },
-                { tipo: 'Retencion', descripcion: 'Aporte Extra Ordinario OSECAC', unidad: 'Fijo', importe: aporteSolidarioOS },
-            ];
-
-            setPayrollPreview({
-                periodo,
-                fecha_pago: ahora.toISOString().slice(0, 10),
-                banco_deposito: 'Caja Fija',
-                conceptos, totalBruto, totalRetenciones, totalNeto
-            });
+        // Auxilio de Transporte (si devenga menos de 2 SMMLV)
+        let totalNoRemunerativo = 0;
+        if (basico <= TOPE_AUX_TRANSPORTE) {
+            totalNoRemunerativo += AUX_TRANSPORTE_2026;
+            conceptos.push({ tipo: 'NoRemunerativo', descripcion: 'Auxilio de Transporte', unidad: 'Legal', importe: AUX_TRANSPORTE_2026 });
         }
+
+        // Novedades y Recargos (CST 2026)
+        const valorHora = getValorHoraOrdinaria(basico, ahora);
+
+        if (novedadesMes.recNocturno > 0) {
+            const montoRecNocturno = novedadesMes.recNocturno * valorHora * RECARGOS_2026.NOCTURNO;
+            conceptos.push({ tipo: 'Remunerativo', descripcion: 'Recargo Nocturno', unidad: `${novedadesMes.recNocturno}h`, importe: montoRecNocturno });
+            totalRemunerativo += montoRecNocturno;
+        }
+        if (novedadesMes.heDiurnas > 0) {
+            const montoHED = novedadesMes.heDiurnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_DIURNA);
+            conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Diurnas', unidad: `${novedadesMes.heDiurnas}h`, importe: montoHED });
+            totalRemunerativo += montoHED;
+        }
+        if (novedadesMes.heNocturnas > 0) {
+            const montoHEN = novedadesMes.heNocturnas * valorHora * (1 + RECARGOS_2026.HORA_EXTRA_NOCTURNA);
+            conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Extras Nocturnas', unidad: `${novedadesMes.heNocturnas}h`, importe: montoHEN });
+            totalRemunerativo += montoHEN;
+        }
+        if (novedadesMes.dominicales > 0) {
+            const montoDominical = novedadesMes.dominicales * valorHora * (1 + RECARGOS_2026.DOMINICAL_ORDINARIO);
+            conceptos.push({ tipo: 'Remunerativo', descripcion: 'Horas Dominicales', unidad: `${novedadesMes.dominicales}h`, importe: montoDominical });
+            totalRemunerativo += montoDominical;
+        }
+
+        // Retenciones (Salud 4%, Pensión 4%) sobre el total remunerativo (devengado gravable)
+        const salud = totalRemunerativo * APORTES_EMPLEADO_2026.SALUD;
+        const pension = totalRemunerativo * APORTES_EMPLEADO_2026.PENSION;
+        conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Salud (4%)', unidad: '4%', importe: salud });
+        conceptos.push({ tipo: 'Retencion', descripcion: 'Aporte Pensión (4%)', unidad: '4%', importe: pension });
+
+        const totalRetenciones = salud + pension;
+        const totalBruto = totalRemunerativo + totalNoRemunerativo;
+        const totalNeto = totalBruto - totalRetenciones;
+
+        setPayrollPreview({
+            periodo,
+            fecha_pago: ahora.toISOString().slice(0, 10),
+            banco_deposito: 'Transferencia Bancaria',
+            conceptos, totalBruto, totalRetenciones, totalNeto
+        });
+
         setIsPayrollOpen(true);
     };
 
@@ -674,22 +470,21 @@ export default function Branches() {
         const anio = hoy.getFullYear();
 
         const valorDiaBruto = Number(selectedEmpleado.sueldo_basico) / 30;
-        const deducciones = settings.pais === 'Colombia' ? 0.08 : 0.195; // 8% en COL vs 19.5% en ARG
+        const deducciones = 0.08; // 8% (Salud + Pensión)
         const valorDiaNeto = valorDiaBruto * (1 - deducciones);
-        const locale = settings.pais === 'Colombia' ? 'es-CO' : 'es-AR';
-        const montoStr = (valorDiaNeto * vacationData.dias).toLocaleString(locale, { minimumFractionDigits: settings.pais === 'Colombia' ? 0 : 2 });
+        const montoStr = (valorDiaNeto * vacationData.dias).toLocaleString('es-CO', { minimumFractionDigits: 0 });
 
         doc.setFontSize(11);
-        doc.text(`${settings.pais === 'Colombia' ? 'Colombia' : 'La Plata'}, ${dias} de ${mes} de ${anio}`, 400, 60, { align: 'right' });
+        doc.text(`Colombia, ${dias} de ${mes} de ${anio}`, 400, 60, { align: 'right' });
 
         const margin = 50;
         const startY = 150;
         const lineHeight = 18;
 
         doc.setFont('helvetica', 'normal');
-        const idLabel = settings.pais === 'Colombia' ? 'Cédula' : 'DNI';
-        const idValue = settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || '________') : (emp.dni || '________');
-        
+        const idLabel = 'Cédula';
+        const idValue = emp.cedula_ciudadania || emp.rut || '________';
+
         let text = `Por medio de la presente, yo ${emp.nombre}, ${idLabel} ${idValue}, dejo constancia de que he solicitado a la empresa ${settings.businessName || 'Comercio Pepito'} la posibilidad de percibir una compensación económica de $${montoStr} a cambio de no gozar de ${vacationData.dias} días de vacaciones correspondientes al período ${vacationData.periodo}.`;
 
         const splitText = doc.splitTextToSize(text, 500);
@@ -697,9 +492,7 @@ export default function Branches() {
 
         let nextY = startY + (splitText.length * lineHeight) + 20;
 
-        let text2 = settings.pais === 'Colombia'
-            ? `Asimismo, declaro que fui informado/a por la empresa de que, conforme al Código Sustantivo del Trabajo (CST), los recargos y compensaciones económicas no salariales acordadas corresponden al pago sustitutivo de la licencia, siempre sujeto al ordenamiento y límites legales vigentes.`
-            : `Asimismo, declaro que fui informado/a por la empresa de que, conforme a la Ley de Contrato de Trabajo (Art. 162 y 164), los días por licencia deben ser gozados y no pueden ser reemplazados por el pago, salvo en caso de extinción del vínculo laboral.`;
+        let text2 = `Asimismo, declaro que fui informado/a por la empresa de que, conforme al Código Sustantivo del Trabajo (CST), los recargos y compensaciones económicas no salariales acordadas corresponden al pago sustitutivo de la licencia, siempre sujeto al ordenamiento y límites legales vigentes.`;
         const splitText2 = doc.splitTextToSize(text2, 500);
         doc.text(splitText2, margin, nextY);
 
@@ -749,15 +542,13 @@ export default function Branches() {
 
     const generatePDF = (liq: any, emp: Empleado) => {
         const doc = new jsPDF('p', 'pt', 'a4');
-        const formatCurr = (val: number) => val.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR', { minimumFractionDigits: settings.pais === 'Colombia' ? 0 : 2 });
+        const formatCurr = (val: number) => val.toLocaleString('es-CO', { minimumFractionDigits: 0 });
         const drawRecibo = (startY: number, title: string) => {
             doc.setFontSize(10);
-            const tituloLey = settings.pais === 'Colombia' ? 'Nómina - Código Sustantivo del Trabajo' : 'Recibo de Sueldo - Ley 20.744';
-            doc.text(`${tituloLey} - Ejemplar: ${title}`, 40, startY + 20);
+            doc.text(`Nómina - Código Sustantivo del Trabajo - Ejemplar: ${title}`, 40, startY + 20);
             doc.setFontSize(8);
-            const identificadorEmpresa = settings.pais === 'Colombia' ? 'NIT: 900.000.000-0' : 'CUIT: 30-00000000-0';
-            doc.text(`${settings.businessName || 'Empresa Ejemplo S.A.'} | ${identificadorEmpresa} | Domicilio Ficticio 123`, 40, startY + 35);
-            const idEmpLabel = settings.pais === 'Colombia' ? `C.C./RUT: ${emp.cedula_ciudadania || emp.rut || ''}` : `CUIL: ${emp.cuil || ''}`;
+            doc.text(`${settings.businessName || 'Empresa Ejemplo S.A.'} | NIT: 900.000.000-0 | Domicilio Ficticio 123`, 40, startY + 35);
+            const idEmpLabel = `C.C./RUT: ${emp.cedula_ciudadania || emp.rut || ''}`;
             doc.text(`Empleado: ${emp.nombre} | LEGAJO: ${emp.id} | ${idEmpLabel}`, 40, startY + 50);
             doc.text(`Categoría: ${emp.categoria_cct || emp.cargo || ''} | Ingreso: ${emp.fecha_ingreso} | Periodo: ${liq.periodo}`, 40, startY + 65);
 
@@ -771,10 +562,10 @@ export default function Branches() {
 
             autoTable(doc, {
                 startY: startY + 80,
-                head: [['Concepto', 'Unidad/Porc', settings.pais === 'Colombia' ? 'Devengado' : 'Remunerativo', settings.pais === 'Colombia' ? 'Base/Otros' : 'No Remunerativo', 'Deducciones']],
+                head: [['Concepto', 'Unidad/Porc', 'Devengado', 'Base/Otros', 'Deducciones']],
                 body: tableData,
                 styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: settings.pais === 'Colombia' ? [16, 185, 129] : [79, 70, 229] }, // Emerald vs Indigo
+                headStyles: { fillColor: [16, 185, 129] }, // Emerald
                 margin: { left: 40, right: 40 }
             });
 
@@ -787,13 +578,9 @@ export default function Branches() {
             doc.setFontSize(7);
             doc.text(`Firma Empleador ......................................`, 80, finalY + 40);
             doc.text(`Firma Empleado ......................................`, 350, finalY + 40);
-            
-            if (settings.pais === 'Colombia') {
-                const cuneRandom = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                doc.text(`CUNE Sistema (Local): ${cuneRandom} | No válido como nómina electrónica DIAN.`, 40, finalY + 60);
-            } else {
-                doc.text(`Art. 12 Ley 17250: Último depósito aportes mes ant.: Banco Nación. | No válido como recibo sin firma.`, 40, finalY + 60);
-            }
+
+            const cuneRandom = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            doc.text(`CUNE Sistema (Local): ${cuneRandom} | No válido como nómina electrónica DIAN.`, 40, finalY + 60);
         };
 
         // Draw Duplicate and Original
@@ -813,11 +600,7 @@ export default function Branches() {
             <div className="flex justify-between items-end mb-6">
                 <div>
                     <h1 className="text-2xl font-bold">Recursos Humanos</h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {settings.pais === 'Colombia' 
-                            ? 'Gestión de Personal, Legajos y Nómina (CST 2026)' 
-                            : 'Gestión de Personal, Legajos y Liquidación de Sueldos (CCT 130/75)'}
-                    </p>
+                    <p className="text-sm text-slate-500 mt-1">Gestión de Personal, Legajos y Nómina (CST 2026)</p>
                 </div>
                 <button
                     onClick={() => handleOpenForm(null)}
@@ -845,7 +628,7 @@ export default function Branches() {
                                 <h3 className="font-bold text-lg leading-tight text-slate-800">{emp.nombre}</h3>
                                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
                                     {emp.categoria_cct || emp.cargo || 'Sin Categoría'}
-                                    {emp.modalidad_contratacion === 'Informal' && (
+                                    {(emp.modalidad_contratacion === 'Informal' || emp.modalidad_contratacion === 'No registrado') && (
                                         <span className="bg-rose-100 text-rose-700 text-[10px] uppercase font-black px-1.5 py-0.5 rounded-md">Informal</span>
                                     )}
                                 </p>
@@ -854,12 +637,12 @@ export default function Branches() {
 
                         <div className="space-y-2 mb-6">
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-400 font-medium">{settings.pais === 'Colombia' ? 'Cédula/RUT' : 'CUIL'}</span>
-                                <span className="font-mono text-slate-700">{settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || 'No reg.') : (emp.cuil || 'No reg.')}</span>
+                                <span className="text-slate-400 font-medium">Cédula/RUT</span>
+                                <span className="font-mono text-slate-700">{emp.cedula_ciudadania || emp.rut || 'No reg.'}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400 font-medium">Básico</span>
-                                <span className="font-bold text-slate-800">${emp.sueldo_basico?.toLocaleString(settings.pais === 'Colombia' ? 'es-CO' : 'es-AR') || '0'}</span>
+                                <span className="font-bold text-slate-800">${emp.sueldo_basico?.toLocaleString('es-CO') || '0'}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400 font-medium">Ingreso</span>
@@ -896,62 +679,24 @@ export default function Branches() {
                                     <div className="w-1/3">
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Modalidad</label>
                                         <select required className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-bold" value={formData.modalidad_contratacion || 'Indefinido'} onChange={e => setFormData({ ...formData, modalidad_contratacion: e.target.value })}>
-                                            {settings.pais === 'Colombia' ? (
-                                                <>
-                                                    <option value="Indefinido">Indefinido (Ley 2466/2025)</option>
-                                                    <option value="Término Fijo">Término Fijo (máx. 4 años)</option>
-                                                    <option value="Obra o Labor">Obra o Labor Determinada</option>
-                                                    <option value="No registrado">No registrado (Informal)</option>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <option value="Formal">Registrado</option>
-                                                    <option value="Informal">No registrado</option>
-                                                </>
-                                            )}
+                                            <option value="Indefinido">Indefinido (Ley 2466/2025)</option>
+                                            <option value="Término Fijo">Término Fijo (máx. 4 años)</option>
+                                            <option value="Obra o Labor">Obra o Labor Determinada</option>
+                                            <option value="No registrado">No registrado (Informal)</option>
                                         </select>
                                     </div>
                                 </div>
-                                {settings.pais === 'Colombia' ? (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cédula Ciudadanía</label>
-                                            <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.cedula_ciudadania || ''} onChange={e => setFormData({ ...formData, cedula_ciudadania: e.target.value })} placeholder="1.234.567.890" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">RUT</label>
-                                            <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-mono" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: e.target.value })} placeholder="12345678-9" />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">DNI</label>
-                                            <input required type="text" maxLength={8} className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.dni} onChange={e => handleDniChange(e.target.value)} placeholder="Solo números (Max 8)" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CUIL</label>
-                                            <input
-                                                required
-                                                type="text"
-                                                maxLength={13}
-                                                className={`w-full px-4 py-2 bg-slate-50 border rounded-xl font-mono ${cuilError ? 'border-rose-400 focus:ring-rose-300' : 'border-slate-200'}`}
-                                                value={formData.cuil}
-                                                onChange={e => handleCuilChange(e.target.value)}
-                                                placeholder={formData.dni ? `XX-${formData.dni}-X` : '00-00000000-0'}
-                                            />
-                                            {cuilError
-                                                ? <p className="text-xs text-rose-500 mt-1 font-semibold">{cuilError}</p>
-                                                : <p className="text-xs text-slate-400 mt-1">Formato: XX-{formData.dni || 'DNI'}-X</p>
-                                            }
-                                        </div>
-                                    </>
-                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cédula Ciudadanía</label>
+                                    <input required type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.cedula_ciudadania || ''} onChange={e => setFormData({ ...formData, cedula_ciudadania: e.target.value })} placeholder="1.234.567.890" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">RUT</label>
+                                    <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl font-mono" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: e.target.value })} placeholder="12345678-9" />
+                                </div>
 
                                 <div className="col-span-2">
-                                    <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">
-                                        {settings.pais === 'Colombia' ? 'Datos Legales y de Nómina (CST 2026)' : 'Datos Legales y de Convenio (CCT 130/75)'}
-                                    </h4>
+                                    <h4 className="font-bold text-primary-600 mt-4 border-b pb-2 mb-2">Datos Legales y de Nómina (CST 2026)</h4>
                                 </div>
 
                                 <div>
@@ -1023,21 +768,17 @@ export default function Branches() {
                                     <input type="text" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{settings.pais === 'Colombia' ? 'EPS / Salud' : 'Cobertura Médica'}</label>
-                                    <input type="text" placeholder={settings.pais === 'Colombia' ? 'Ej: Sanitas' : 'Ej: OSECAC'} className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={settings.pais === 'Colombia' ? (formData.eps || '') : formData.obra_social} onChange={e => settings.pais === 'Colombia' ? setFormData({...formData, eps: e.target.value}) : setFormData({ ...formData, obra_social: e.target.value })} />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">EPS / Salud</label>
+                                    <input type="text" placeholder="Ej: Sanitas" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.eps || ''} onChange={e => setFormData({ ...formData, eps: e.target.value })} />
                                 </div>
-                                {settings.pais === 'Colombia' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fondo de Pensiones</label>
-                                            <input type="text" placeholder="Ej: Porvenir" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.fondo_pensiones || ''} onChange={e => setFormData({...formData, fondo_pensiones: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ARL</label>
-                                            <input type="text" placeholder="Ej: Positiva" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.arl || ''} onChange={e => setFormData({...formData, arl: e.target.value})} />
-                                        </div>
-                                    </>
-                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fondo de Pensiones</label>
+                                    <input type="text" placeholder="Ej: Porvenir" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.fondo_pensiones || ''} onChange={e => setFormData({...formData, fondo_pensiones: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ARL</label>
+                                    <input type="text" placeholder="Ej: Positiva" className="w-full px-4 py-2 bg-slate-50 border rounded-xl" value={formData.arl || ''} onChange={e => setFormData({...formData, arl: e.target.value})} />
+                                </div>
                             </form>
                         </div>
                         <div className="p-4 border-t border-slate-100 flex gap-3 bg-white shrink-0">
@@ -1057,7 +798,7 @@ export default function Branches() {
                                 <div className="hidden sm:flex w-12 h-12 rounded-full bg-primary-100 text-primary-600 items-center justify-center"><PersonIcon /></div>
                                 <div>
                                     <h2 className="text-xl font-bold">{selectedEmpleado.nombre}</h2>
-                                    <p className="text-sm font-medium text-slate-500">Legajo y Liquidaciones | {settings.pais === 'Colombia' ? 'CC/NIT' : 'CUIL'}: {settings.pais === 'Colombia' ? (selectedEmpleado.cedula_ciudadania || selectedEmpleado.rut || '') : selectedEmpleado.cuil}</p>
+                                    <p className="text-sm font-medium text-slate-500">Legajo y Liquidaciones | CC/NIT: {selectedEmpleado.cedula_ciudadania || selectedEmpleado.rut || ''}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -1087,13 +828,13 @@ export default function Branches() {
                                         <p className="font-medium text-slate-700">{selectedEmpleado.localidad || '—'}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs font-bold text-slate-400 uppercase">{settings.pais === 'Colombia' ? 'EPS' : 'Obra Social'}</p>
-                                        <p className="font-medium text-slate-700">{settings.pais === 'Colombia' ? selectedEmpleado.eps : selectedEmpleado.obra_social || '—'}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase">EPS</p>
+                                        <p className="font-medium text-slate-700">{selectedEmpleado.eps || '—'}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            {selectedEmpleado.modalidad_contratacion === 'Informal' ? (
+                            {(selectedEmpleado.modalidad_contratacion === 'Informal' || selectedEmpleado.modalidad_contratacion === 'No registrado') ? (
                                 <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center">
                                     <CloseIcon sx={{ fontSize: 48 }} className="text-rose-300 mb-2" />
                                     <h3 className="text-rose-800 font-bold text-lg">Modo Informal Activo</h3>
@@ -1140,7 +881,7 @@ export default function Branches() {
                                             )}
                                         </div>
 
-                                        {!selectedEmpleado.fecha_egreso && settings.pais === 'Colombia' && (
+                                        {!selectedEmpleado.fecha_egreso && (
                                             <div className="mb-6 p-5 bg-emerald-50 border border-emerald-100 rounded-3xl shadow-inner-sm">
                                                 <p className="text-[11px] font-black text-emerald-800 uppercase mb-3 flex items-center gap-2">
                                                     <CheckCircleIcon sx={{ fontSize: 16 }} /> Novedades del Mes (Horas Extra y Recargos CST 2026)
@@ -1217,7 +958,7 @@ export default function Branches() {
                                                 <div className="flex-1 w-full flex flex-col justify-center items-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl p-8 text-center bg-slate-50">
                                                     <ReceiptIcon sx={{ fontSize: 64, opacity: 0.2, marginBottom: '1rem' }} />
                                                     <p className="font-bold text-lg mb-1 hidden sm:block">Aún no hay recibos generados</p>
-                                                    <p className="text-sm">Liquida el mes actual para generar el recibo en formato {settings.pais === 'Colombia' ? 'CST' : 'LCT'}.</p>
+                                                    <p className="text-sm">Liquida el mes actual para generar el recibo en formato CST.</p>
                                                 </div>
                                             ) : (
                                                 <div className="w-full flex flex-col gap-3">
@@ -1227,7 +968,7 @@ export default function Branches() {
                                                                 <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><ReceiptIcon fontSize="small" /></div>
                                                                 <div>
                                                                     <p className="font-bold text-slate-800">Periodo {liq.periodo}</p>
-                                                                    <p className="text-xs text-slate-500">Neto: ${liq.total_neto.toLocaleString('es-AR')}</p>
+                                                                    <p className="text-xs text-slate-500">Neto: ${liq.total_neto.toLocaleString('es-CO')}</p>
                                                                 </div>
                                                             </div>
                                                             <button onClick={() => generatePDF(liq, selectedEmpleado)} className="p-2 text-slate-400 hover:text-rose-600 bg-white rounded-lg shadow-sm border border-slate-200">
@@ -1269,17 +1010,17 @@ export default function Branches() {
                                         <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
                                             <td className="py-3 px-4 font-medium">{c.descripcion}</td>
                                             <td className="py-3 px-4 text-slate-500">{c.unidad}</td>
-                                            <td className="py-3 px-4 text-right">{c.tipo !== 'Retencion' ? `$${c.importe.toLocaleString('es-AR')}` : '-'}</td>
-                                            <td className="py-3 px-4 text-right text-rose-600">{c.tipo === 'Retencion' ? `-$${c.importe.toLocaleString('es-AR')}` : '-'}</td>
+                                            <td className="py-3 px-4 text-right">{c.tipo !== 'Retencion' ? `$${c.importe.toLocaleString('es-CO')}` : '-'}</td>
+                                            <td className="py-3 px-4 text-right text-rose-600">{c.tipo === 'Retencion' ? `-$${c.importe.toLocaleString('es-CO')}` : '-'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                             <div className="mt-6 flex justify-end">
                                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 w-64">
-                                    <div className="flex justify-between text-sm mb-1 text-slate-500"><span>Bruto</span> <span>${payrollPreview.totalBruto.toLocaleString('es-AR')}</span></div>
-                                    <div className="flex justify-between text-sm mb-2 text-rose-500"><span>Descuentos</span> <span>-${payrollPreview.totalRetenciones.toLocaleString('es-AR')}</span></div>
-                                    <div className="flex justify-between text-lg font-bold text-emerald-600 pt-2 border-t border-slate-200"><span>Neto</span> <span>${payrollPreview.totalNeto.toLocaleString('es-AR')}</span></div>
+                                    <div className="flex justify-between text-sm mb-1 text-slate-500"><span>Bruto</span> <span>${payrollPreview.totalBruto.toLocaleString('es-CO')}</span></div>
+                                    <div className="flex justify-between text-sm mb-2 text-rose-500"><span>Descuentos</span> <span>-${payrollPreview.totalRetenciones.toLocaleString('es-CO')}</span></div>
+                                    <div className="flex justify-between text-lg font-bold text-emerald-600 pt-2 border-t border-slate-200"><span>Neto</span> <span>${payrollPreview.totalNeto.toLocaleString('es-CO')}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -1308,34 +1049,27 @@ export default function Branches() {
                                 ⚠️ <strong>Historial Preservado:</strong> El empleado pasará al Historial de Bajas conservando datos y recibos.
                             </div>
 
-                            {settings.pais === 'Colombia' && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 text-xs space-y-2">
-                                    <p className="font-black text-sm text-blue-800 flex items-center gap-2">Marco Legal — Ley 2466 de 2025 / CST 2026</p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">Debido Proceso (Art. 7 Ley 2466)</p>
-                                            <p>Para despido con justa causa: mínimo <strong>5 días hábiles</strong> de defensa + audiencia de descargos. Su omisión convierte el despido en injusto.</p>
-                                        </div>
-                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">Fueros de Estabilidad</p>
-                                            <p><strong>Maternidad:</strong> Hasta 2 años del menor. <strong>Discapacidad:</strong> Requiere autorización Ministerio del Trabajo. <strong>Prepensionado:</strong> Protección hasta 3 años antes de pensionar.</p>
-                                        </div>
-                                        <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
-                                            <p className="font-bold text-blue-700 mb-1">Acoso Laboral (Ley 2466/2025)</p>
-                                            <p>Un <strong>solo acto</strong> es suficiente para configurar acoso. Permite al trabajador invocar despido indirecto con derecho a indemnización completa.</p>
-                                        </div>
-                                        <div className="bg-white/60 rounded-lg p-2.5 border border-red-100">
-                                            <p className="font-bold text-red-700 mb-1">Sanción Moratoria (Art. 65 CST)</p>
-                                            <p>Si no paga la liquidación al día del egreso: <strong>1 día de salario por cada día de retraso</strong> (primeros 24 meses). Luego intereses moratorios.</p>
-                                        </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 text-xs space-y-2">
+                                <p className="font-black text-sm text-blue-800 flex items-center gap-2">Marco Legal — Ley 2466 de 2025 / CST 2026</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                        <p className="font-bold text-blue-700 mb-1">Debido Proceso (Art. 7 Ley 2466)</p>
+                                        <p>Para despido con justa causa: mínimo <strong>5 días hábiles</strong> de defensa + audiencia de descargos. Su omisión convierte el despido en injusto.</p>
+                                    </div>
+                                    <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                        <p className="font-bold text-blue-700 mb-1">Fueros de Estabilidad</p>
+                                        <p><strong>Maternidad:</strong> Hasta 2 años del menor. <strong>Discapacidad:</strong> Requiere autorización Ministerio del Trabajo. <strong>Prepensionado:</strong> Protección hasta 3 años antes de pensionar.</p>
+                                    </div>
+                                    <div className="bg-white/60 rounded-lg p-2.5 border border-blue-100">
+                                        <p className="font-bold text-blue-700 mb-1">Acoso Laboral (Ley 2466/2025)</p>
+                                        <p>Un <strong>solo acto</strong> es suficiente para configurar acoso. Permite al trabajador invocar despido indirecto con derecho a indemnización completa.</p>
+                                    </div>
+                                    <div className="bg-white/60 rounded-lg p-2.5 border border-red-100">
+                                        <p className="font-bold text-red-700 mb-1">Sanción Moratoria (Art. 65 CST)</p>
+                                        <p>Si no paga la liquidación al día del egreso: <strong>1 día de salario por cada día de retraso</strong> (primeros 24 meses). Luego intereses moratorios.</p>
                                     </div>
                                 </div>
-                            )}
-                            {settings.pais !== 'Colombia' && (
-                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 text-sm">
-                                    <strong>Actualización Ley Bases (2024):</strong> Las multas por registración deficiente han sido derogadas. El cálculo actual corresponde a LCT base.
-                                </div>
-                            )}
+                            </div>
 
                             <form id="desvincularForm" onSubmit={handleConfirmDesvinculacion} className="grid grid-cols-2 gap-4">
                                 <div>
@@ -1346,27 +1080,15 @@ export default function Branches() {
                                         value={desvinculacionData.causal_egreso}
                                         onChange={e => handleDesvinculacionChange('causal_egreso', e.target.value)}
                                     >
-                                        {settings.pais === 'Colombia' ? (
-                                            <>
-                                                <option value="Renuncia voluntaria del trabajador (Art. 61 CST)">Renuncia voluntaria (Art. 61 CST)</option>
-                                                <option value="Despido sin justa causa (Art. 64 CST — Ley 2466/2025)">Despido sin justa causa (Art. 64 CST)</option>
-                                                <option value="Despido con justa causa (Art. 62 CST)">Despido con justa causa (Art. 62 CST)</option>
-                                                <option value="Despido indirecto por acoso laboral (Ley 2466/2025)">Despido indirecto — acoso (Ley 2466/2025)</option>
-                                                <option value="Mutuo acuerdo entre las partes (Art. 61 CST)">Mutuo acuerdo (Art. 61 CST)</option>
-                                                <option value="Expiración del término fijo — no renovación (Art. 61 CST)">Expiración del término fijo (Art. 61 CST)</option>
-                                                <option value="Terminación de la obra o labor contratada (Art. 61 CST)">Terminación de obra o labor (Art. 61 CST)</option>
-                                                <option value="Reconocimiento de pensión (Art. 62 CST)">Reconocimiento de pensión (Art. 62 CST)</option>
-                                                <option value="Muerte del trabajador (Art. 61 CST)">Muerte del trabajador (Art. 61 CST)</option>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <option value="Renuncia del trabajador (Art. 240 LCT)">Renuncia del trabajador (Art. 240 LCT)</option>
-                                                <option value="Despido sin justa causa (Art. 245 LCT)">Despido sin justa causa (Art. 245 LCT)</option>
-                                                <option value="Despido con justa causa (Art. 242 LCT)">Despido con justa causa (Art. 242 LCT)</option>
-                                                <option value="Extinción por mutuo acuerdo (Art. 241 LCT)">Extinción por mutuo acuerdo (Art. 241 LCT)</option>
-                                                <option value="Fin de periodo de prueba (Art. 92 bis)">Fin de periodo de prueba (Art. 92 bis)</option>
-                                            </>
-                                        )}
+                                        <option value="Renuncia voluntaria del trabajador (Art. 61 CST)">Renuncia voluntaria (Art. 61 CST)</option>
+                                        <option value="Despido sin justa causa (Art. 64 CST — Ley 2466/2025)">Despido sin justa causa (Art. 64 CST)</option>
+                                        <option value="Despido con justa causa (Art. 62 CST)">Despido con justa causa (Art. 62 CST)</option>
+                                        <option value="Despido indirecto por acoso laboral (Ley 2466/2025)">Despido indirecto — acoso (Ley 2466/2025)</option>
+                                        <option value="Mutuo acuerdo entre las partes (Art. 61 CST)">Mutuo acuerdo (Art. 61 CST)</option>
+                                        <option value="Expiración del término fijo — no renovación (Art. 61 CST)">Expiración del término fijo (Art. 61 CST)</option>
+                                        <option value="Terminación de la obra o labor contratada (Art. 61 CST)">Terminación de obra o labor (Art. 61 CST)</option>
+                                        <option value="Reconocimiento de pensión (Art. 62 CST)">Reconocimiento de pensión (Art. 62 CST)</option>
+                                        <option value="Muerte del trabajador (Art. 61 CST)">Muerte del trabajador (Art. 61 CST)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -1386,7 +1108,7 @@ export default function Branches() {
                                 <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
                                     <div className="bg-slate-100 px-4 py-2.5 flex items-center gap-2">
                                         <ReceiptIcon className="text-rose-500" fontSize="small" />
-                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final Estimada ({settings.pais === 'Colombia' ? 'CST' : 'LCT'}) — {indemnizacion.anios} años de servicio</h4>
+                                        <h4 className="font-bold text-sm text-slate-700">Liquidación Final Estimada (CST) — {indemnizacion.anios} años de servicio</h4>
                                     </div>
                                     <table className="w-full text-sm">
                                         <thead>
@@ -1401,7 +1123,7 @@ export default function Branches() {
                                                 <tr key={i} className="border-b border-slate-100 hover:bg-rose-50/30">
                                                     <td className="px-4 py-2.5 font-medium text-slate-700">{item.concepto}</td>
                                                     <td className="px-4 py-2.5 text-slate-400 text-xs">{item.detalle}</td>
-                                                    <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-AR')}` : '—'}</td>
+                                                    <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-CO')}` : '—'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1409,10 +1131,10 @@ export default function Branches() {
                                     {indemnizacion.total > 0 && (
                                         <div className="px-4 py-3 bg-rose-600 flex justify-between items-center text-white">
                                             <span className="font-bold">TOTAL ESTIMADO A PAGAR</span>
-                                            <span className="text-xl font-black">${Math.round(indemnizacion.total).toLocaleString('es-AR')}</span>
+                                            <span className="text-xl font-black">${Math.round(indemnizacion.total).toLocaleString('es-CO')}</span>
                                         </div>
                                     )}
-                                    <p className="text-[10px] text-slate-400 px-4 py-2">* Cálculo orientativo basado en {settings.pais === 'Colombia' ? 'CST Art. 64' : 'art. 231, 232, 241, 242, 245 LCT'}. No incluye retenciones o aportes patronales. Verificar con contador previo al pago.</p>
+                                    <p className="text-[10px] text-slate-400 px-4 py-2">* Cálculo orientativo basado en CST Art. 64. No incluye retenciones o aportes patronales. Verificar con contador previo al pago.</p>
                                 </div>
                             )}
                         </div>
@@ -1445,7 +1167,7 @@ export default function Branches() {
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Empleado</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Causal de Egreso</th>
                                         <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Fecha Baja</th>
-                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">{settings.pais === 'Colombia' ? 'Cédula / RUT' : 'CUIL'}</th>
+                                        <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Cédula / RUT</th>
                                         <th className="text-right px-4 py-3 text-xs font-bold text-slate-500 uppercase">Acciones</th>
                                     </tr>
                                 </thead>
@@ -1455,7 +1177,7 @@ export default function Branches() {
                                             <td className="px-4 py-3 font-semibold text-slate-700">{emp.nombre}</td>
                                             <td className="px-4 py-3 text-slate-500">{emp.causal_egreso}</td>
                                             <td className="px-4 py-3 text-slate-500">{emp.fecha_egreso}</td>
-                                            <td className="px-4 py-3 font-mono text-slate-400">{settings.pais === 'Colombia' ? (emp.cedula_ciudadania || emp.rut || '—') : emp.cuil}</td>
+                                            <td className="px-4 py-3 font-mono text-slate-400">{emp.cedula_ciudadania || emp.rut || '—'}</td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex justify-end gap-2">
                                                     {emp.indemnizacion_json && (
@@ -1520,7 +1242,7 @@ export default function Branches() {
                                             <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
                                                 <td className="px-4 py-2.5 font-medium text-slate-700">{item.concepto}</td>
                                                 <td className="px-4 py-2.5 text-slate-400 text-xs">{item.detalle}</td>
-                                                <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-AR')}` : '—'}</td>
+                                                <td className="px-4 py-2.5 text-right font-bold">{item.monto > 0 ? `$${Math.round(item.monto).toLocaleString('es-CO')}` : '—'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1528,7 +1250,7 @@ export default function Branches() {
                                 {viewingIndemnizacion.total > 0 && (
                                     <div className="px-4 py-4 bg-slate-800 flex justify-between items-center text-white">
                                         <span className="font-bold">TOTAL ESTIMADO</span>
-                                        <span className="text-xl font-black">${Math.round(viewingIndemnizacion.total).toLocaleString('es-AR')}</span>
+                                        <span className="text-xl font-black">${Math.round(viewingIndemnizacion.total).toLocaleString('es-CO')}</span>
                                     </div>
                                 )}
                             </div>
@@ -1550,7 +1272,7 @@ export default function Branches() {
                 <div className="hidden print:block print-only p-8 text-black bg-white w-full min-h-screen">
                     <div className="mb-6 pb-4 border-b-2 border-slate-800">
                         <h2 className="text-2xl font-bold m-0">Detalle de Liquidación Final</h2>
-                        <p className="mt-2 text-sm"><strong>Empleado:</strong> {selectedEmpleado.nombre} (CUIL: {selectedEmpleado.cuil})</p>
+                        <p className="mt-2 text-sm"><strong>Empleado:</strong> {selectedEmpleado.nombre} (Cédula/RUT: {selectedEmpleado.cedula_ciudadania || selectedEmpleado.rut || '—'})</p>
                         <p className="text-sm"><strong>Ingreso:</strong> {selectedEmpleado.fecha_ingreso} | <strong>Egreso:</strong> {selectedEmpleado.fecha_egreso}</p>
                         <p className="text-sm"><strong>Causal:</strong> {selectedEmpleado.causal_egreso}</p>
                     </div>
@@ -1567,7 +1289,7 @@ export default function Branches() {
                                 <tr key={idx}>
                                     <td className="border border-slate-300 p-3 text-slate-800">{item.concepto}</td>
                                     <td className="border border-slate-300 p-3 text-slate-600">{item.detalle}</td>
-                                    <td className="border border-slate-300 p-3 text-right font-bold text-slate-800">{item.monto > 0 ? '$' + Math.round(item.monto).toLocaleString('es-AR') : '—'}</td>
+                                    <td className="border border-slate-300 p-3 text-right font-bold text-slate-800">{item.monto > 0 ? '$' + Math.round(item.monto).toLocaleString('es-CO') : '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1575,7 +1297,7 @@ export default function Branches() {
                     {viewingIndemnizacion.total > 0 && (
                         <div className="bg-slate-800 text-white mt-6 p-4 flex justify-between font-bold text-lg rounded-xl">
                             <span>TOTAL ESTIMADO</span>
-                            <span>${Math.round(viewingIndemnizacion.total).toLocaleString('es-AR')}</span>
+                            <span>${Math.round(viewingIndemnizacion.total).toLocaleString('es-CO')}</span>
                         </div>
                     )}
                 </div>
@@ -1593,7 +1315,7 @@ export default function Branches() {
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                 <p className="text-xs font-bold text-slate-400 uppercase mb-2">Empleado</p>
                                 <p className="font-bold text-slate-800">{selectedEmpleado.nombre}</p>
-                                <p className="text-xs text-slate-500">Sueldo Básico: ${selectedEmpleado.sueldo_basico.toLocaleString('es-AR')}</p>
+                                <p className="text-xs text-slate-500">Sueldo Básico: ${selectedEmpleado.sueldo_basico.toLocaleString('es-CO')}</p>
                             </div>
 
                             <div className="flex flex-col gap-4">
@@ -1621,9 +1343,9 @@ export default function Branches() {
                             <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm font-bold text-amber-800">Monto Neto Calculado</span>
-                                    <span className="text-xl font-black text-amber-900">${((Number(selectedEmpleado.sueldo_basico) / 30) * 0.805 * vacationData.dias).toLocaleString('es-AR')}</span>
+                                    <span className="text-xl font-black text-amber-900">${((Number(selectedEmpleado.sueldo_basico) / 30) * 0.92 * vacationData.dias).toLocaleString('es-CO')}</span>
                                 </div>
-                                <p className="text-[10px] text-amber-600 mt-1 italic text-center">Cálculo: (Bruto / 30) - 19.5% de aportes.</p>
+                                <p className="text-[10px] text-amber-600 mt-1 italic text-center">Cálculo: (Básico / 30) - 8% de aportes (Salud + Pensión).</p>
                             </div>
                         </div>
                         <div className="p-6 border-t border-slate-100 flex flex-col gap-2">
