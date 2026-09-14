@@ -33,6 +33,7 @@ export default function FacturacionDIAN() {
     const [reintentandoTodas, setReintentandoTodas] = useState(false);
     const [flash, setFlash] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
     const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [tursoDegradado, setTursoDegradado] = useState(false);
 
     const mostrarFlash = (tipo: 'ok' | 'error', texto: string) => {
         setFlash({ tipo, texto });
@@ -61,6 +62,15 @@ export default function FacturacionDIAN() {
             if (flashTimer.current) clearTimeout(flashTimer.current);
         };
     }, [cargar]);
+
+    useEffect(() => {
+        // Facturar no depende de Turso (va por MATIAS), pero avisamos igual si el
+        // sync a la nube quedó caído por un problema de red/TLS al arrancar.
+        const checarTurso = () => ipc.invoke('get-turso-status').then((s) => setTursoDegradado(Boolean(s?.syncDegradado))).catch(() => { });
+        checarTurso();
+        const int = setInterval(checarTurso, 60000);
+        return () => clearInterval(int);
+    }, []);
 
     const reintentarUna = async (f: FacturaPendiente) => {
         setReintentando(f.venta_id);
@@ -140,6 +150,14 @@ export default function FacturacionDIAN() {
                     </button>
                 </div>
             </div>
+
+            {tursoDegradado && (
+                <div className="mb-4 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 bg-rose-50 text-rose-700 border border-rose-200">
+                    <ErrorOutlineIcon fontSize="small" />
+                    Sin conexión con Turso (backup en la nube) — la facturación DIAN no se ve afectada, va por MATIAS.
+                    El sistema sigue local y reintenta la sincronización solo. Revisá el detalle en Ajustes.
+                </div>
+            )}
 
             {flash && (
                 <div

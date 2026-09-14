@@ -45,6 +45,12 @@ tursoToken = tursoToken || secret('TURSO_AUTH_TOKEN');
 
 const syncEnabled = Boolean(tursoUrl && tursoToken);
 
+// Si un error de red/TLS al abrir con syncUrl nos obligó a arrancar en modo
+// local puro, queda registrado acá para avisar en la UI (Ajustes / Facturación
+// DIAN) y para que el job de reconexión sepa que tiene que seguir intentando.
+let syncDegradado = false;
+let syncDegradadoMotivo = null;
+
 // Archivos auxiliares que libSQL crea junto al .db (WAL, metadata de la réplica…)
 const REPLICA_SUFFIXES = ['-shm', '-wal', '-info', '-client_wal_index', '-journal'];
 
@@ -79,26 +85,77 @@ if (syncEnabled) {
 // sync", o tras un cierre sucio: "invalid local state: db file exists but
 // metadata file does not"), la apartamos y reintentamos una vez con réplica
 // nueva — Turso es la fuente de verdad, se vuelve a bajar entera.
+//
+// Si en cambio el problema es de red/TLS/DNS al conectar con syncUrl (típico
+// en redes con proxy que intercepta TLS: "invalid peer certificate: UnknownIssuer"),
+// NO es recuperable reintentando contra Turso — hay que arrancar en modo local
+// puro (sin syncUrl/authToken) para no tumbar la app, y dejar la reconexión
+// para más adelante (ver _intentarReconectarSync más abajo). Facturar no
+// depende de esto: la DIAN va por MATIAS, no por Turso.
 function _abrirCliente() {
   try {
     return createClient(clientOpts);
   } catch (err) {
     const msg = String(err && err.message || err);
-    const recuperable = syncEnabled && /invalid local state|metadata file does not|not a database|file is (not|encrypted)/i.test(msg);
-    if (!recuperable) throw err;
-    console.error('[DB] Error abriendo la réplica local:', msg);
-    _apartarReplicaLocal('estado local inválido');
-    return createClient(clientOpts); // segundo intento; si falla, que reviente
+
+    const estadoLocalInvalido = syncEnabled && /invalid local state|metadata file does not|not a database|file is (not|encrypted)/i.test(msg);
+    if (estadoLocalInvalido) {
+      console.error('[DB] Error abriendo la réplica local:', msg);
+      _apartarReplicaLocal('estado local inválido');
+      return createClient(clientOpts); // segundo intento; si falla, que reviente
+    }
+
+    const errorConexion = syncEnabled && /error trying to connect|invalid peer certificate|unknownissuer|certificate|enotfound|econnrefused|etimedout|eai_again/i.test(msg);
+    if (errorConexion) {
+      console.error('[DB] No se pudo conectar a Turso al arrancar (red/TLS) — sigue 100% local sin sync:', msg);
+      syncDegradado = true;
+      syncDegradadoMotivo = msg;
+      return createClient({ url: clientOpts.url, syncInterval: clientOpts.syncInterval }); // sin syncUrl/authToken
+    }
+
+    throw err;
   }
 }
 
 const db = _abrirCliente();
 
-if (syncEnabled) {
+if (syncEnabled && !syncDegradado) {
   // Sincronización inicial al arrancar (trae cambios pendientes de la nube)
   db.sync().catch((err) => console.error('Error en sync inicial:', err));
-} else {
+} else if (!syncEnabled) {
   console.warn('[DB] Sin credenciales de Turso — modo local sin sincronización en la nube.');
+}
+
+// Si Turso vuelve a responder mientras la app ya está arrancada en modo
+// degradado, no reabrimos el cliente en caliente (podría pisar una operación
+// en curso, p.ej. una venta escribiéndose en ese instante) — dejamos el sync
+// para el próximo restart, que ya es el mecanismo existente en el proyecto
+// para aplicar cambios de conexión Turso (botón "Reiniciar app" en Ajustes).
+// Este job solo detecta cuándo ya se puede reiniciar sin perder el intento.
+let syncReconectable = false;
+let syncRetryTimer = null;
+async function _sondearReconexionTurso() {
+  if (!syncEnabled || !syncDegradado || syncReconectable) return;
+  let probe;
+  try {
+    probe = createClient({ url: tursoUrl, authToken: tursoToken });
+    await probe.execute('SELECT 1');
+    syncReconectable = true;
+    console.log('[DB] Turso volvió a responder — reiniciá la app (Ajustes) para reactivar el sync.');
+    if (syncRetryTimer) { clearInterval(syncRetryTimer); syncRetryTimer = null; }
+  } catch (err) {
+    console.warn('[DB] Turso sigue sin responder, se reintenta más tarde:', err.message || err);
+  } finally {
+    try { probe && probe.close(); } catch { /* noop */ }
+  }
+}
+
+if (syncEnabled && syncDegradado) {
+  syncRetryTimer = setInterval(() => { _sondearReconexionTurso(); }, 5 * 60 * 1000);
+}
+
+function getSyncStatus() {
+  return { syncEnabled, syncDegradado, syncDegradadoMotivo, syncReconectable };
 }
 
 // Helpers — la API de libSQL ya es async/await nativo
@@ -530,4 +587,4 @@ async function initDb() {
 
 const dbReady = initDb();
 
-module.exports = { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl };
+module.exports = { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl, getSyncStatus };

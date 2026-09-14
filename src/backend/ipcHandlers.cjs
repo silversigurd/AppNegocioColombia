@@ -1,6 +1,6 @@
 const { ipcMain, app, shell, dialog } = require('electron');
 const { createClient } = require('@libsql/client');
-const { db, dbReady, dbPath, dbRun, dbGet, dbAll, syncEnabled, tursoUrl } = require('./db.cjs');
+const { db, dbReady, dbPath, dbRun, dbGet, dbAll, tursoUrl, getSyncStatus } = require('./db.cjs');
 const { BASE_URL: DIAN_BASE_URL, IS_SANDBOX: DIAN_IS_SANDBOX } = require('./dianService.cjs');
 const { procesarFactura, procesarPendientes, emitirNotaCreditoPorVenta, procesarNotaCredito } = require('./facturacionPendientes.cjs');
 const { readTenant, writeTenant, markReplicaReset } = require('./tenantConfig.cjs');
@@ -906,8 +906,12 @@ async function setupIpcHandlers() {
         if (tenant) fuente = 'instalacion';
         else if (secret('TURSO_DATABASE_URL')) fuente = 'build';
 
+        const estado = getSyncStatus();
         return {
-            syncEnabled,                       // estado real con el que arrancó la app
+            syncEnabled: estado.syncEnabled,   // había credenciales al arrancar
+            syncDegradado: estado.syncDegradado,       // no se pudo conectar (red/TLS) y quedó en modo local
+            syncDegradadoMotivo: estado.syncDegradadoMotivo,
+            syncReconectable: estado.syncReconectable, // Turso ya responde de nuevo, falta reiniciar para reactivar
             fuente,                            // 'instalacion' | 'build' | 'ninguna'
             urlActual: maskUrl(tursoUrl),
             tieneConfigInstalacion: Boolean(tenant),

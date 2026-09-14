@@ -483,12 +483,20 @@ export default function Settings() {
                     </h2>
 
                     <div className={`rounded-xl p-3 mb-4 text-[11px] font-bold border flex items-center gap-2 ${
-                        tursoStatus?.syncEnabled
+                        tursoStatus?.syncDegradado
+                            ? tursoStatus?.syncReconectable
+                                ? 'bg-amber-50 border-amber-100 text-amber-700'
+                                : 'bg-rose-50 border-rose-100 text-rose-700'
+                            : tursoStatus?.syncEnabled
                             ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
                             : 'bg-amber-50 border-amber-100 text-amber-700'
                     }`}>
-                        <div className={`w-2 h-2 rounded-full ${tursoStatus?.syncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                        {tursoStatus?.syncEnabled
+                        <div className={`w-2 h-2 rounded-full ${tursoStatus?.syncDegradado ? (tursoStatus?.syncReconectable ? 'bg-amber-500 animate-pulse' : 'bg-rose-500') : tursoStatus?.syncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                        {tursoStatus?.syncDegradado
+                            ? tursoStatus?.syncReconectable
+                                ? <>Turso volvió a responder — reiniciá la app (botón abajo) para reactivar la sincronización.</>
+                                : <>No se pudo conectar con Turso al arrancar (red o certificado) — el sistema sigue funcionando 100% local, sin perder nada, y reintenta solo cada 5 min.</>
+                            : tursoStatus?.syncEnabled
                             ? <>Sincronización activa {tursoStatus?.urlActual ? `(${tursoStatus.urlActual})` : ''} · origen: {tursoStatus?.fuente === 'instalacion' ? 'este equipo' : 'configuración por defecto'}</>
                             : <>Sin sincronización — el sistema funciona local. Cargá la base de este negocio abajo.</>}
                     </div>
